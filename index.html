@@ -1391,13 +1391,17 @@ function setSyncStatus(status, msg) {
     return;
   }
   badge.classList.add('show', status);
-  const labels = {
-    syncing: '同步中…',
-    synced: '已同步',
-    offline: '離線(已存本機)',
-    error: msg || '同步失敗'
-  };
-  badge.textContent = labels[status] || status;
+  if (msg) {
+    badge.textContent = msg;
+  } else {
+    const labels = {
+      syncing: '同步中…',
+      synced: '已同步',
+      offline: '離線(已存本機)',
+      error: '同步失敗'
+    };
+    badge.textContent = labels[status] || status;
+  }
   // synced 顯示 2 秒後消失
   if (status === 'synced') {
     setTimeout(() => {
@@ -1604,7 +1608,10 @@ async function syncToGithub() {
   if (syncStatus === 'syncing') return;  // 防重入
 
   const cfg = await getGithubConfig();
-  if (!cfg) return;  // 還沒設定
+  if (!cfg) {
+    console.warn('[sync] GitHub 未設定,跳過同步');
+    return;
+  }
 
   if (!navigator.onLine) {
     setSyncStatus('offline');
@@ -1614,30 +1621,62 @@ async function syncToGithub() {
   const queue = await idbGetAll('sync_queue');
   if (queue.length === 0) return;
 
-  setSyncStatus('syncing');
+  console.log(`[sync] 開始同步 ${queue.length} 筆`);
+  setSyncStatus('syncing', `同步中… 0/${queue.length}`);
 
   let success = 0, failed = 0;
-  for (const item of queue) {
+  // 按日期排序,讓進度可預測
+  queue.sort((a, b) => a.date.localeCompare(b.date));
+
+  for (let i = 0; i < queue.length; i++) {
+    const item = queue[i];
     try {
       await pushDay(cfg, item.date);
       await idbDelete('sync_queue', item.date);
       success++;
+      // 每 10 筆更新一次進度顯示 (太頻繁會卡)
+      if ((i + 1) % 10 === 0 || i === queue.length - 1) {
+        setSyncStatus('syncing', `同步中… ${i + 1}/${queue.length}`);
+      }
     } catch (err) {
-      console.error(`Failed to sync ${item.date}:`, err);
+      console.error(`[sync] ${item.date} 失敗:`, err);
       failed++;
+      // 失敗時不要立刻退出,繼續處理其他項目
+      // 但連續失敗 5 筆就停 (避免持續打爆 API)
+      if (failed >= 5) {
+        console.error('[sync] 連續失敗過多,中止');
+        break;
+      }
     }
   }
 
+  console.log(`[sync] 完成: 成功 ${success}, 失敗 ${failed}`);
+
   if (failed > 0) {
-    setSyncStatus('error', `${failed} 筆同步失敗`);
+    setSyncStatus('error', `${failed} 筆失敗 (按齒輪→重新同步)`);
   } else {
     setSyncStatus('synced');
   }
 
-  // 同步完後重新渲染當天 (因為遠端可能有新內容被合併進來)
   if (success > 0) {
     renderAll();
   }
+}
+
+// 手動觸發重新同步 (給設定頁的「重試」按鈕用)
+async function manualResync() {
+  const cfg = await getGithubConfig();
+  if (!cfg) {
+    toast('請先設定 GitHub');
+    return;
+  }
+  const queue = await idbGetAll('sync_queue');
+  if (queue.length === 0) {
+    toast('沒有待同步的資料');
+    return;
+  }
+  toast(`重新同步 ${queue.length} 筆…`);
+  await syncToGithub();
 }
 
 // 從 GitHub 拉取某天 (使用者主動觸發,或還原情境)
@@ -2683,9 +2722,17 @@ async function handleImport(file) {
     for (const item of toImport) {
       await idbPut('sync_queue', { date: item.date, ts: Date.now() });
     }
-    scheduleSyncSoon();
-    toast(`已匯入 ${imported} 筆`);
+    toast(`已匯入 ${imported} 筆,開始同步到 GitHub…`);
     renderWeightCard();
+    // 大量匯入時:直接立即同步 (不等 debounce)
+    const cfg = await getGithubConfig();
+    if (cfg) {
+      // 用 setTimeout 0 讓 toast 先顯示,再開始長時間的同步
+      setTimeout(() => syncToGithub(), 100);
+    } else {
+      // 沒設定 GitHub 的話提醒一下
+      setTimeout(() => toast('提示:可在齒輪→GitHub 設定後同步到雲端'), 1500);
+    }
   } catch (err) {
     console.error(err);
     toast('匯入失敗: ' + err.message);
@@ -2826,6 +2873,15 @@ async function openSettingsModal() {
 
     <div class="settings-section">
       <div class="settings-section-title">資料管理</div>
+      <div class="settings-row settings-row-action" id="action-resync">
+        <div class="settings-row-info">
+          <div class="settings-row-label">重新同步到 GitHub</div>
+          <div class="settings-row-desc">把待同步的資料推到雲端 (中斷後可用此繼續)</div>
+        </div>
+        <span class="settings-row-arrow">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13"/></svg>
+        </span>
+      </div>
       <div class="settings-row settings-row-action" id="action-import-excel">
         <div class="settings-row-info">
           <div class="settings-row-label">匯入歷史體重</div>
@@ -2879,6 +2935,10 @@ async function openSettingsModal() {
   `);
 
   // 綁定資料管理動作
+  document.getElementById('action-resync').addEventListener('click', () => {
+    closeModal();
+    manualResync();
+  });
   document.getElementById('action-import-excel').addEventListener('click', () => {
     closeModal();
     document.getElementById('file-input').click();
