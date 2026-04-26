@@ -383,12 +383,47 @@ button {
 }
 
 .weight-row-spark-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   font-size: 10px;
   color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
+
+.spark-period {
   font-family: ui-serif, Georgia, "Times New Roman", serif;
   font-style: italic;
-  text-align: right;
-  letter-spacing: 0.02em;
+}
+
+.weight-row-spark-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.weight-row-spark-change.down {
+  color: var(--success);
+}
+
+.weight-row-spark-change.up {
+  color: var(--danger);
+}
+
+.weight-row-spark-change.flat {
+  color: var(--text-tertiary);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.change-tri {
+  width: 8px;
+  height: 8px;
+  display: block;
 }
 
 .weight-spark {
@@ -2040,19 +2075,42 @@ async function renderWeightCard() {
     </div>` : ''}
   `;
 
-  // 渲染所有 sparkline
+  // 渲染所有 sparkline + 監聽尺寸變化(展開時重畫)
   document.querySelectorAll('.weight-spark[data-series]').forEach(el => {
     const series = JSON.parse(el.dataset.series);
     renderSparkline(el, series);
+    // 設定 ResizeObserver 處理「展開時 SVG 從 0 寬變正常寬」的情境
+    if (window.ResizeObserver && !el._observed) {
+      const ro = new ResizeObserver(() => {
+        const w = el.getBoundingClientRect().width;
+        if (w > 0 && Math.abs(w - (el._lastWidth || 0)) > 1) {
+          el._lastWidth = w;
+          renderSparkline(el, series);
+        }
+      });
+      ro.observe(el);
+      el._observed = true;
+    }
   });
 
   const tog = document.getElementById('weight-more-toggle');
   if (tog) {
     tog.addEventListener('click', () => {
-      document.getElementById('weight-detail').classList.toggle('open');
-      const isOpen = document.getElementById('weight-detail').classList.contains('open');
+      const detail = document.getElementById('weight-detail');
+      detail.classList.toggle('open');
+      const isOpen = detail.classList.contains('open');
       tog.classList.toggle('open', isOpen);
       tog.querySelector('span:first-child').textContent = isOpen ? 'less' : 'more';
+      // 展開時:重新繪製 detail 內所有 sparkline (因為它們之前 width 是 0)
+      if (isOpen) {
+        // 等下一個 frame 讓佈局完成,再重畫
+        requestAnimationFrame(() => {
+          detail.querySelectorAll('.weight-spark[data-series]').forEach(el => {
+            const series = JSON.parse(el.dataset.series);
+            renderSparkline(el, series);
+          });
+        });
+      }
     });
   }
 }
@@ -2082,18 +2140,56 @@ async function getWeightHistory(endDateStr, days) {
   return datesToCheck.map(ds => localRecs[ds] || null);
 }
 
+// 計算 30 天變化量 (找序列裡第一個非 null 跟最後一個非 null,算差)
+function calcSeriesChange(series, unit) {
+  const valid = [];
+  for (let i = 0; i < series.length; i++) {
+    if (series[i] != null) valid.push({ i, v: series[i] });
+  }
+  if (valid.length < 2) return null;
+  const first = valid[0];
+  const last = valid[valid.length - 1];
+  const diff = last.v - first.v;
+  const absDiff = Math.abs(diff);
+  // 變化太小視為持平 (體重 < 0.1 kg、百分比 < 0.1%)
+  if (absDiff < 0.05) return { type: 'flat', text: '持平' };
+  // 是降還是升 (對減重情境:降為好、升為提醒)
+  return {
+    type: diff < 0 ? 'down' : 'up',
+    diff: absDiff,
+    text: `${absDiff.toFixed(1)} ${unit}`,
+    isPartial: valid.length < series.length * 0.6  // 資料覆蓋 < 60% 時標記
+  };
+}
+
 // 產生一個 weight row 的 HTML, 包含 sparkline
 function weightRowHtml(label, value, unit, series) {
   const valueDisplay = (value != null)
     ? `<div class="weight-row-value">${Number(value).toFixed(1)}<span class="weight-row-unit">${unit}</span></div>`
     : `<div class="weight-row-value-empty">—</div>`;
+
+  const change = calcSeriesChange(series, unit);
+  let changeHtml = '';
+  if (change) {
+    if (change.type === 'flat') {
+      changeHtml = `<span class="weight-row-spark-change flat">持平</span>`;
+    } else {
+      const arrow = change.type === 'down'
+        ? '<svg viewBox="0 0 10 10" fill="currentColor" class="change-tri"><polygon points="1,3 9,3 5,8"/></svg>'
+        : '<svg viewBox="0 0 10 10" fill="currentColor" class="change-tri"><polygon points="1,7 9,7 5,2"/></svg>';
+      changeHtml = `<span class="weight-row-spark-change ${change.type}">${arrow}${change.text}</span>`;
+    }
+  }
+
   return `<div class="weight-row">
     <div class="weight-row-info">
       <div class="weight-row-label">${label}</div>
       ${valueDisplay}
     </div>
     <div class="weight-row-spark-wrap">
-      <div class="weight-row-spark-label">30 days</div>
+      <div class="weight-row-spark-label">
+        <span class="spark-period">30 days</span>${changeHtml}
+      </div>
       <svg class="weight-spark" data-series='${JSON.stringify(series)}'></svg>
     </div>
   </div>`;
