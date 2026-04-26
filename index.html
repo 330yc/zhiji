@@ -1877,12 +1877,22 @@ function toast(msg) {
 // ---------- 主要 render ----------
 async function renderAll() {
   renderDateNav();
+  // 立刻用本機資料渲染 (不等 lazy pull)
   await Promise.all([
     renderWeightCard(),
     renderMealCard(),
     renderSupplementCard(),
     renderActivityCard()
   ]);
+  // 背景嘗試 lazy pull 當前日期 (有資料就重渲染)
+  lazyPullDay(currentDate).then(pulled => {
+    if (pulled) {
+      renderWeightCard();
+      renderMealCard();
+      renderSupplementCard();
+      renderActivityCard();
+    }
+  });
 }
 
 const MONTH_ABBR = ['Jan.','Feb.','Mar.','Apr.','May','Jun.','Jul.','Aug.','Sep.','Oct.','Nov.','Dec.'];
