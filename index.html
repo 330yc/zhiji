@@ -282,9 +282,10 @@ button {
 }
 
 .card-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text-primary);
+  letter-spacing: 0.01em;
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -334,8 +335,8 @@ button {
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   display: grid;
-  grid-template-columns: minmax(110px, auto) 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(100px, auto) 1fr;
+  gap: 14px;
   align-items: center;
 }
 
@@ -374,17 +375,26 @@ button {
   margin-left: 3px;
 }
 
-.weight-row-meta {
+.weight-row-spark-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.weight-row-spark-label {
   font-size: 10px;
   color: var(--text-tertiary);
-  margin-top: 4px;
   font-family: ui-serif, Georgia, "Times New Roman", serif;
   font-style: italic;
+  text-align: right;
+  letter-spacing: 0.02em;
 }
 
 .weight-spark {
-  height: 46px;
+  height: 44px;
   width: 100%;
+  display: block;
 }
 
 .weight-more {
@@ -2081,36 +2091,42 @@ function weightRowHtml(label, value, unit, series) {
     <div class="weight-row-info">
       <div class="weight-row-label">${label}</div>
       ${valueDisplay}
-      <div class="weight-row-meta">30 days</div>
     </div>
-    <svg class="weight-spark" data-series='${JSON.stringify(series)}' preserveAspectRatio="none"></svg>
+    <div class="weight-row-spark-wrap">
+      <div class="weight-row-spark-label">30 days</div>
+      <svg class="weight-spark" data-series='${JSON.stringify(series)}'></svg>
+    </div>
   </div>`;
 }
 
 // 在 SVG 元素上畫 sparkline
 function renderSparkline(svgEl, data) {
-  // SVG viewBox 用實際寬高
+  // 用實際像素寬高當 viewBox,不需要 preserveAspectRatio="none"
   const rect = svgEl.getBoundingClientRect();
-  const W = rect.width || 200;
-  const H = rect.height || 46;
-  const PAD_TOP = 6;
-  const PAD_BOT = 6;
-  const PAD_LEFT = 2;
-  const PAD_RIGHT = 6;
-  const innerW = W - PAD_LEFT - PAD_RIGHT;
-  const innerH = H - PAD_TOP - PAD_BOT;
+  const W = Math.max(60, Math.round(rect.width)) || 200;
+  const H = Math.max(20, Math.round(rect.height)) || 44;
 
   svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svgEl.removeAttribute('preserveAspectRatio');
 
   const valid = data.filter(v => v != null);
   if (valid.length < 2) {
-    // 太少資料就顯示 placeholder
-    svgEl.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="#B5A48A" font-style="italic">need more data</text>`;
+    svgEl.innerHTML = `<text x="${W/2}" y="${H/2 + 3}" text-anchor="middle" font-size="10" fill="#B5A48A" font-style="italic">need more data</text>`;
     return;
   }
+
+  const PAD_TOP = 8;
+  const PAD_BOT = 8;
+  const PAD_LEFT = 4;
+  const PAD_RIGHT = 8;
+  const innerW = W - PAD_LEFT - PAD_RIGHT;
+  const innerH = H - PAD_TOP - PAD_BOT;
+
   const vmin = Math.min(...valid);
   const vmax = Math.max(...valid);
-  const padding = (vmax - vmin) * 0.15 || 0.5;
+  // 收緊 padding 8% 讓變化更鮮明
+  const span = vmax - vmin || 1;
+  const padding = span * 0.08;
   const yMax = vmax + padding;
   const yMin = vmin - padding;
   const yRange = yMax - yMin || 1;
