@@ -403,12 +403,22 @@ button {
 
 .weight-row-spark-change {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 5px;
-  font-size: 14px;
-  font-weight: 600;
   font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
   letter-spacing: 0.01em;
+}
+
+.change-num {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.change-unit {
+  font-size: 11px;
+  font-weight: 400;
+  margin-left: 3px;
+  opacity: 0.85;
 }
 
 .weight-row-spark-change.down {
@@ -2161,7 +2171,7 @@ function calcSeriesChange(series, unit) {
   return {
     type: diff < 0 ? 'down' : 'up',
     diff: absDiff,
-    text: `${absDiff.toFixed(1)} ${unit}`,
+    text: `<span class="change-num">${absDiff.toFixed(1)}</span><span class="change-unit">${unit}</span>`,
     firstIdx: first.i
   };
 }
