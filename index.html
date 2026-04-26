@@ -1785,6 +1785,63 @@ async function manualResync() {
   await syncToGithub();
 }
 
+// 記錄「這一天最近什麼時候從 GitHub 拉過了」(避免重複拉)
+const pullCache = {};  // { 'YYYY-MM-DD': timestamp }
+const PULL_TTL = 60 * 1000;  // 1 分鐘內拉過就不重拉
+
+// Lazy pull: 切日期時、如果本機沒資料,主動去 GitHub 找
+async function lazyPullDay(dateStr, forceRefresh = false) {
+  if (!forceRefresh && pullCache[dateStr] && Date.now() - pullCache[dateStr] < PULL_TTL) {
+    return false;
+  }
+  const cfg = await getGithubConfig();
+  if (!cfg) return false;
+  if (!navigator.onLine) return false;
+
+  // 先看本機有沒有 (有就不用拉)
+  if (!forceRefresh) {
+    const localWeight = await idbGet('weight', dateStr);
+    const localSupp = await idbGet('supplements', dateStr);
+    const localMeals = await idbGetByIndex('meals', 'date', dateStr);
+    const localActs = await idbGetByIndex('activities', 'date', dateStr);
+    if (localWeight || localSupp || localMeals.length || localActs.length) {
+      pullCache[dateStr] = Date.now();
+      return false;
+    }
+  }
+
+  try {
+    const remote = await fetchRemoteDay(cfg, dateStr);
+    pullCache[dateStr] = Date.now();
+    if (!remote) return false;
+    await applyRemoteDay(remote.payload);
+    await idbPut('sync_meta', { date: dateStr, sha: remote.sha });
+    return true;
+  } catch (err) {
+    console.warn(`[lazyPull] ${dateStr} 失敗:`, err);
+    return false;
+  }
+}
+
+// 背景補拉一批日期 (有 concurrency limit)
+let pullingMissing = false;
+async function backgroundPullMissing(dates) {
+  if (pullingMissing) return 0;
+  pullingMissing = true;
+  let updated = 0;
+  try {
+    const CONCURRENCY = 3;
+    for (let i = 0; i < dates.length; i += CONCURRENCY) {
+      const batch = dates.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(batch.map(ds => lazyPullDay(ds)));
+      updated += results.filter(r => r).length;
+    }
+  } finally {
+    pullingMissing = false;
+  }
+  return updated;
+}
+
 // 從 GitHub 拉取某天 (使用者主動觸發,或還原情境)
 async function pullDayFromGithub(dateStr) {
   const cfg = await getGithubConfig();
@@ -1992,15 +2049,27 @@ async function renderWeightCard() {
 
 // 取得從 endDateStr 往前 days 天的歷史資料
 async function getWeightHistory(endDateStr, days) {
-  const result = [];
   const endDate = parseDate(endDateStr);
+  const datesToCheck = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = addDays(endDate, -i);
-    const ds = fmtDate(d);
-    const rec = await idbGet('weight', ds);
-    result.push(rec || null);
+    datesToCheck.push(fmtDate(addDays(endDate, -i)));
   }
-  return result;
+  // 一次拿本機所有
+  const localRecs = {};
+  for (const ds of datesToCheck) {
+    localRecs[ds] = await idbGet('weight', ds);
+  }
+  // 找出本機缺的、且最近沒拉過的日期 (避免重複請求)
+  const now = Date.now();
+  const missing = datesToCheck.filter(ds =>
+    !localRecs[ds] && (!pullCache[ds] || now - pullCache[ds] >= PULL_TTL)
+  );
+  if (missing.length > 0) {
+    backgroundPullMissing(missing).then(updated => {
+      if (updated > 0) renderWeightCard();
+    });
+  }
+  return datesToCheck.map(ds => localRecs[ds] || null);
 }
 
 // 產生一個 weight row 的 HTML, 包含 sparkline
