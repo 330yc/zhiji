@@ -382,28 +382,31 @@ button {
   gap: 2px;
 }
 
-.weight-row-spark-label {
+.weight-row-spark-top {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  font-size: 10px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.02em;
+  min-height: 14px;
 }
 
-.spark-period {
-  font-family: ui-serif, Georgia, "Times New Roman", serif;
-  font-style: italic;
+.weight-row-spark-start {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: 0.02em;
+  text-align: left;
+  margin-top: -2px;
+  padding-left: 2px;
 }
 
 .weight-row-spark-change {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 13px;
   font-weight: 600;
   font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: 0.01em;
 }
 
 .weight-row-spark-change.down {
@@ -418,11 +421,12 @@ button {
   color: var(--text-tertiary);
   font-style: italic;
   font-weight: 400;
+  font-size: 12px;
 }
 
 .change-tri {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   display: block;
 }
 
@@ -1265,7 +1269,7 @@ button {
 
 <div class="card" id="card-weight">
   <div class="card-header">
-    <div class="card-title">體重</div>
+    <div class="card-title">Body Composition</div>
     <button class="edit-btn" data-modal="weight" title="編輯">
       <svg viewBox="0 0 16 16" fill="none">
         <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
@@ -1278,7 +1282,7 @@ button {
 
 <div class="card" id="card-meal">
   <div class="card-header">
-    <div class="card-title">餐點</div>
+    <div class="card-title">Meals</div>
     <button class="edit-btn" data-modal="meal" title="編輯">
       <svg viewBox="0 0 16 16" fill="none">
         <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
@@ -1292,7 +1296,7 @@ button {
 <div class="card" id="card-supp">
   <div class="card-header">
     <div class="card-title">
-      保健品
+      Supplements
       <span class="card-title-meta" id="supp-count">—</span>
     </div>
     <button class="edit-btn" data-modal="supp" title="編輯">
@@ -1307,7 +1311,7 @@ button {
 
 <div class="card" id="card-activity">
   <div class="card-header">
-    <div class="card-title">活動</div>
+    <div class="card-title">Activity</div>
     <button class="edit-btn" data-modal="activity" title="編輯">
       <svg viewBox="0 0 16 16" fill="none">
         <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
@@ -2140,7 +2144,7 @@ async function getWeightHistory(endDateStr, days) {
   return datesToCheck.map(ds => localRecs[ds] || null);
 }
 
-// 計算 30 天變化量 (找序列裡第一個非 null 跟最後一個非 null,算差)
+// 計算序列變化量 (找第一個非 null 跟最後一個非 null,算差)
 function calcSeriesChange(series, unit) {
   const valid = [];
   for (let i = 0; i < series.length; i++) {
@@ -2151,26 +2155,40 @@ function calcSeriesChange(series, unit) {
   const last = valid[valid.length - 1];
   const diff = last.v - first.v;
   const absDiff = Math.abs(diff);
-  // 變化太小視為持平 (體重 < 0.1 kg、百分比 < 0.1%)
-  if (absDiff < 0.05) return { type: 'flat', text: '持平' };
-  // 是降還是升 (對減重情境:降為好、升為提醒)
+  if (absDiff < 0.05) return { type: 'flat', text: '持平', firstIdx: first.i };
   return {
     type: diff < 0 ? 'down' : 'up',
     diff: absDiff,
     text: `${absDiff.toFixed(1)} ${unit}`,
-    isPartial: valid.length < series.length * 0.6  // 資料覆蓋 < 60% 時標記
+    firstIdx: first.i
   };
 }
 
+// 算出 30 天序列裡「第一個有資料的日期」,給 sparkline 起點標籤用
+// endDateStr 是序列終點 (今天),firstIdx 是第一個非 null 在序列中的位置
+function getStartDateLabel(endDateStr, firstIdx, totalDays) {
+  // 序列從 endDate - (totalDays - 1) 開始
+  // firstIdx 是該序列中第一個非 null 的索引
+  const endDate = parseDate(endDateStr);
+  const firstDate = addDays(endDate, -(totalDays - 1 - firstIdx));
+  // 用 "Mar 27" 格式 (跟主日期 "Apr." 同家族,但去掉句點以保持小尺寸乾淨)
+  const monthAbbr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${monthAbbr[firstDate.getMonth()]} ${firstDate.getDate()}`;
+}
+
 // 產生一個 weight row 的 HTML, 包含 sparkline
-function weightRowHtml(label, value, unit, series) {
+function weightRowHtml(label, value, unit, series, totalDays = 30) {
   const valueDisplay = (value != null)
     ? `<div class="weight-row-value">${Number(value).toFixed(1)}<span class="weight-row-unit">${unit}</span></div>`
     : `<div class="weight-row-value-empty">—</div>`;
 
   const change = calcSeriesChange(series, unit);
   let changeHtml = '';
+  let startDateLabel = '';
+
   if (change) {
+    startDateLabel = getStartDateLabel(currentDate, change.firstIdx, totalDays);
     if (change.type === 'flat') {
       changeHtml = `<span class="weight-row-spark-change flat">持平</span>`;
     } else {
@@ -2187,10 +2205,9 @@ function weightRowHtml(label, value, unit, series) {
       ${valueDisplay}
     </div>
     <div class="weight-row-spark-wrap">
-      <div class="weight-row-spark-label">
-        <span class="spark-period">30 days</span>${changeHtml}
-      </div>
+      <div class="weight-row-spark-top">${changeHtml}</div>
       <svg class="weight-spark" data-series='${JSON.stringify(series)}'></svg>
+      <div class="weight-row-spark-start">${startDateLabel}</div>
     </div>
   </div>`;
 }
