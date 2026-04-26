@@ -1017,19 +1017,43 @@ button {
 }
 
 .cook-chip {
-  padding: 6px 12px;
+  padding: 1px 11px 2px;
   border: 0.5px solid var(--border);
-  border-radius: 14px;
+  border-radius: 10px;
   font-size: 12px;
-  color: var(--text-secondary);
+  line-height: 1.4;
   cursor: pointer;
   user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+  letter-spacing: 0.03em;
 }
 
-.cook-chip.selected {
-  background: var(--accent-bg);
-  color: var(--accent-bg-text);
-  border-color: var(--accent);
+/* 未選取狀態:用顏色提示烹調方式的健康程度 */
+.cook-chip.cook-green { color: var(--success); border-color: rgba(122, 139, 92, 0.35); }
+.cook-chip.cook-yellow { color: #B8860B; border-color: rgba(184, 134, 11, 0.35); }
+.cook-chip.cook-red { color: var(--danger); border-color: rgba(179, 100, 60, 0.35); }
+.cook-chip.cook-none { color: var(--text-secondary); }
+
+/* 選取狀態:用對應顏色填底,跟其他 chip 同樣的視覺強度 */
+.cook-chip.selected.cook-green {
+  background: rgba(122, 139, 92, 0.15);
+  color: #5C6B42;
+  border-color: var(--success);
+}
+.cook-chip.selected.cook-yellow {
+  background: rgba(184, 134, 11, 0.15);
+  color: #8B6508;
+  border-color: #B8860B;
+}
+.cook-chip.selected.cook-red {
+  background: rgba(179, 100, 60, 0.15);
+  color: #8B4A2E;
+  border-color: var(--danger);
+}
+.cook-chip.selected.cook-none {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
 }
 
 /* Toast */
@@ -1974,7 +1998,15 @@ const MEAL_TYPES = [
   { key: 'snack', label: '點心' },
   { key: 'drink', label: '飲料' }
 ];
-const COOKING_METHODS = ['煎炒', '水煮', '油炸', '—'];
+const COOKING_METHODS = ['生食', '蒸煮', '醬滷', '煎炒', '烘烤', '燉燴', '油炸', '勾芡', '—']
+
+// 烹調方式分類:綠(低脂保留營養)/黃(中等油脂)/紅(高油或精緻醣)
+const COOKING_LEVEL = {
+  '生食': 'green', '蒸煮': 'green', '醬滷': 'green',
+  '煎炒': 'yellow', '烘烤': 'yellow',
+  '燉燴': 'red', '油炸': 'red', '勾芡': 'red',
+  '—': 'none'
+};
 const ACTIVITY_TYPES = [
   { key: 'walk', label: '走路' },
   { key: 'bike', label: '腳踏車' }
@@ -2667,7 +2699,7 @@ function renderMealItems() {
       </div>
       <div class="cook-chips" data-item-cook="${idx}">
         ${COOKING_METHODS.map(m =>
-          `<div class="cook-chip ${it.cooking === m ? 'selected' : ''}" data-cook="${m}">${m}</div>`
+          `<div class="cook-chip cook-${COOKING_LEVEL[m] || 'none'} ${it.cooking === m ? 'selected' : ''}" data-cook="${m}">${m}</div>`
         ).join('')}
       </div>
     </div>
