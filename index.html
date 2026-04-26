@@ -2624,9 +2624,11 @@ async function renderCalendar() {
 async function handleImport(file) {
   try {
     const buf = await file.arrayBuffer();
+    // raw:true + cellDates:true 確保:日期是 Date 物件、數值是 number
+    // (raw:false 會把日期格式化成 Excel 顯示樣式如 "11/2",失去年份)
     const wb = XLSX.read(buf, { type: 'array', cellDates: true });
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
 
     if (rows.length < 2) { toast('檔案是空的'); return; }
 
@@ -2643,11 +2645,17 @@ async function handleImport(file) {
       if (rawDate instanceof Date) {
         dateStr = fmtDate(rawDate);
       } else if (typeof rawDate === 'number') {
+        // Excel 序列號:從 1900-01-01 起算的天數
         const d = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
         dateStr = fmtDate(d);
-      } else if (typeof rawDate === 'string' && rawDate) {
-        const parsed = new Date(rawDate);
-        if (!isNaN(parsed.getTime())) dateStr = fmtDate(parsed);
+      } else if (typeof rawDate === 'string' && rawDate.trim()) {
+        // 字串日期:只接受 YYYY-MM-DD 或 YYYY/M/D 之類含年份的格式
+        const s = rawDate.trim();
+        // 必須包含 4 位數字的年份才接受
+        if (/\d{4}/.test(s)) {
+          const parsed = new Date(s);
+          if (!isNaN(parsed.getTime())) dateStr = fmtDate(parsed);
+        }
       }
 
       if (!dateStr) { skipped++; continue; }
