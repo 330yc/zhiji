@@ -1858,6 +1858,30 @@ async function wipeGithubData() {
   }
 }
 
+// 強制重新拉取「今天」這一天的資料 (繞過快取)
+async function forceRefreshToday() {
+  const cfg = await getGithubConfig();
+  if (!cfg) {
+    toast('請先設定 GitHub');
+    return;
+  }
+  if (!navigator.onLine) {
+    toast('沒有網路');
+    return;
+  }
+  setSyncStatus('syncing', '刷新中…');
+  try {
+    delete pullCache[currentDate];  // 清快取
+    const updated = await lazyPullDay(currentDate, true);  // forceRefresh
+    setSyncStatus(updated ? 'synced' : 'idle');
+    toast(updated ? '已從 GitHub 拉到最新版' : '本日資料已是最新');
+    if (updated) renderAll();
+  } catch (err) {
+    setSyncStatus('error', '刷新失敗');
+    toast('刷新失敗: ' + err.message);
+  }
+}
+
 // 手動觸發重新同步 (給設定頁的「重試」按鈕用)
 async function manualResync() {
   const cfg = await getGithubConfig();
@@ -1878,7 +1902,12 @@ async function manualResync() {
 const pullCache = {};  // { 'YYYY-MM-DD': timestamp }
 const PULL_TTL = 60 * 1000;  // 1 分鐘內拉過就不重拉
 
-// Lazy pull: 切日期時、如果本機沒資料,主動去 GitHub 找
+// Lazy pull: 切日期時主動去 GitHub 看有沒有更新
+// 邏輯:
+// 1. 短期快取(1分鐘)內拉過,跳過
+// 2. 本機沒資料 -> 拉
+// 3. 本機有資料 + 最後寫入很新(< 5 分鐘) -> 信任本機,跳過
+// 4. 本機有資料 + 最後寫入較舊 -> 去 GitHub 比 updatedAt,有更新就拉
 async function lazyPullDay(dateStr, forceRefresh = false) {
   if (!forceRefresh && pullCache[dateStr] && Date.now() - pullCache[dateStr] < PULL_TTL) {
     return false;
@@ -1887,24 +1916,48 @@ async function lazyPullDay(dateStr, forceRefresh = false) {
   if (!cfg) return false;
   if (!navigator.onLine) return false;
 
-  // 先看本機有沒有 (有就不用拉)
+  // 看本機有沒有資料
+  let hasLocal = false;
   if (!forceRefresh) {
     const localWeight = await idbGet('weight', dateStr);
     const localSupp = await idbGet('supplements', dateStr);
     const localMeals = await idbGetByIndex('meals', 'date', dateStr);
     const localActs = await idbGetByIndex('activities', 'date', dateStr);
-    if (localWeight || localSupp || localMeals.length || localActs.length) {
+    hasLocal = !!(localWeight || localSupp || localMeals.length || localActs.length);
+  }
+
+  // 本機有資料的情況:檢查最近寫入時間
+  if (hasLocal && !forceRefresh) {
+    const meta = await idbGet('sync_meta', dateStr);
+    const localWrittenAt = meta?.lastWrittenAt ? new Date(meta.lastWrittenAt).getTime() : 0;
+    const FRESH_LOCAL_MS = 5 * 60 * 1000;  // 5 分鐘內的本機改動,信任本機
+    if (localWrittenAt && Date.now() - localWrittenAt < FRESH_LOCAL_MS) {
       pullCache[dateStr] = Date.now();
       return false;
     }
+    // 否則:去 GitHub 看 updatedAt 是否較新
   }
 
   try {
     const remote = await fetchRemoteDay(cfg, dateStr);
     pullCache[dateStr] = Date.now();
     if (!remote) return false;
+
+    // 比較 remote.updatedAt 跟本機 lastWrittenAt
+    if (hasLocal) {
+      const meta = await idbGet('sync_meta', dateStr);
+      const localTs = meta?.lastWrittenAt ? new Date(meta.lastWrittenAt).getTime() : 0;
+      const remoteTs = remote.payload.updatedAt ? new Date(remote.payload.updatedAt).getTime() : 0;
+      if (localTs >= remoteTs) {
+        // 本機跟 remote 一樣或更新,不需要拉
+        return false;
+      }
+      // remote 較新 -> 拉下來覆蓋本機
+      console.log(`[lazyPull] ${dateStr} 遠端較新 (${remote.payload.updatedAt} > ${meta?.lastWrittenAt}),更新本機`);
+    }
+
     await applyRemoteDay(remote.payload);
-    await idbPut('sync_meta', { date: dateStr, sha: remote.sha });
+    await idbPut('sync_meta', { date: dateStr, sha: remote.sha, lastWrittenAt: remote.payload.updatedAt });
     return true;
   } catch (err) {
     console.warn(`[lazyPull] ${dateStr} 失敗:`, err);
@@ -3281,6 +3334,15 @@ async function openSettingsModal() {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13"/></svg>
         </span>
       </div>
+      <div class="settings-row settings-row-action" id="action-force-pull">
+        <div class="settings-row-info">
+          <div class="settings-row-label">強制刷新本日</div>
+          <div class="settings-row-desc">從 GitHub 重新拉取當前日期的最新版本</div>
+        </div>
+        <span class="settings-row-arrow">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13"/></svg>
+        </span>
+      </div>
       <div class="settings-row settings-row-action" id="action-import-excel">
         <div class="settings-row-info">
           <div class="settings-row-label">匯入歷史體重</div>
@@ -3346,6 +3408,10 @@ async function openSettingsModal() {
   document.getElementById('action-resync').addEventListener('click', () => {
     closeModal();
     manualResync();
+  });
+  document.getElementById('action-force-pull').addEventListener('click', () => {
+    closeModal();
+    forceRefreshToday();
   });
   document.getElementById('action-import-excel').addEventListener('click', () => {
     closeModal();
