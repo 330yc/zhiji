@@ -884,6 +884,125 @@ button {
   gap: 10px;
 }
 
+/* === 保健品設定 modal === */
+.supp-edit-item {
+  padding: 10px 12px !important;
+}
+
+.supp-edit-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.supp-edit-row .supp-name {
+  flex: 1;
+}
+
+.supp-toggle-note,
+.supp-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.supp-toggle-note:hover,
+.supp-remove:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.supp-toggle-note.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.supp-toggle-note svg {
+  width: 14px;
+  height: 14px;
+}
+
+.supp-remove {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.supp-note {
+  margin-top: 8px;
+  font-size: 12px;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  transition: max-height 0.2s, opacity 0.2s, margin 0.2s;
+  max-height: 200px;
+  opacity: 1;
+  overflow: auto;
+}
+
+.supp-note.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  padding: 0;
+  border-width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* === 飲料快選 chip === */
+.drink-quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.drink-quick-chip {
+  padding: 8px 18px;
+  border: 0.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  letter-spacing: 0.02em;
+  font-family: inherit;
+  line-height: 1.3;
+}
+
+.drink-quick-chip:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.drink-quick-chip:active {
+  transform: scale(0.96);
+}
+
+.drink-quick-chip.drink-quick-other {
+  background: transparent;
+  color: var(--text-secondary);
+  border-style: dashed;
+  border-color: var(--text-tertiary);
+}
+
+.drink-quick-chip.drink-quick-other:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-style: solid;
+}
+
 .list-modal-hint {
   font-size: 11px;
   color: var(--text-tertiary);
@@ -1815,6 +1934,154 @@ function mergeDayPayload(local, remote) {
 }
 
 // 從 GitHub 取得某天的檔案 (回傳 {payload, sha} 或 null)
+// ---------- Settings 同步 (跟 day 不同:沒日期維度、整檔 LWW) ----------
+const SETTINGS_META_KEY = '__settings__';
+
+async function fetchRemoteSettings(cfg) {
+  const url = `https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/settings.json`;
+  const resp = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${cfg.token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
+  });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`GET settings.json failed: ${resp.status}`);
+  const data = await resp.json();
+  const decoded = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+  const payload = JSON.parse(decoded);
+  return { payload, sha: data.sha };
+}
+
+async function buildSettingsPayload() {
+  const supps = await idbGet('settings', 'supplements');
+  const meta = await idbGet('sync_meta', SETTINGS_META_KEY);
+  const updatedAt = (meta && meta.lastWrittenAt) ? meta.lastWrittenAt : new Date(0).toISOString();
+  return {
+    supplements: (supps && supps.value) ? supps.value : null,
+    updatedAt
+  };
+}
+
+async function applyRemoteSettings(payload) {
+  if (payload.supplements) {
+    await idbPut('settings', { key: 'supplements', value: payload.supplements });
+  }
+  const meta = await idbGet('sync_meta', SETTINGS_META_KEY) || { date: SETTINGS_META_KEY };
+  meta.lastWrittenAt = payload.updatedAt || new Date(0).toISOString();
+  await idbPut('sync_meta', meta);
+}
+
+async function pushSettings(cfg) {
+  let remote = null;
+  try {
+    remote = await fetchRemoteSettings(cfg);
+  } catch (err) {
+    if (!err.message.includes('404')) throw err;
+  }
+
+  const local = await buildSettingsPayload();
+
+  let merged;
+  if (!remote) {
+    merged = local;
+  } else {
+    const localTs = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+    const remoteTs = remote.payload.updatedAt ? new Date(remote.payload.updatedAt).getTime() : 0;
+    merged = localTs >= remoteTs ? local : remote.payload;
+    if (merged === remote.payload) {
+      // remote 較新 -> 寫回本機、不推
+      await applyRemoteSettings(merged);
+      const m = await idbGet('sync_meta', SETTINGS_META_KEY) || { date: SETTINGS_META_KEY };
+      m.sha = remote.sha;
+      await idbPut('sync_meta', m);
+      return;
+    }
+  }
+
+  const content = JSON.stringify(merged, null, 2);
+  const encoded = btoa(unescape(encodeURIComponent(content)));
+  const body = {
+    message: 'update settings',
+    content: encoded
+  };
+  if (remote) body.sha = remote.sha;
+
+  const url = `https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/settings.json`;
+  const resp = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${cfg.token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error(`PUT settings.json failed: ${resp.status} ${txt.substring(0, 200)}`);
+  }
+
+  const result = await resp.json();
+  const m = await idbGet('sync_meta', SETTINGS_META_KEY) || { date: SETTINGS_META_KEY };
+  m.sha = result.content.sha;
+  await idbPut('sync_meta', m);
+}
+
+let settingsPullCache = 0;
+const SETTINGS_PULL_TTL = 60 * 1000;
+
+async function lazyPullSettings(forceRefresh = false) {
+  if (!forceRefresh && settingsPullCache && Date.now() - settingsPullCache < SETTINGS_PULL_TTL) {
+    return false;
+  }
+  const cfg = await getGithubConfig();
+  if (!cfg) return false;
+  if (!navigator.onLine) return false;
+
+  try {
+    const remote = await fetchRemoteSettings(cfg);
+    settingsPullCache = Date.now();
+    if (!remote) return false;
+
+    const meta = await idbGet('sync_meta', SETTINGS_META_KEY);
+    const localTs = meta?.lastWrittenAt ? new Date(meta.lastWrittenAt).getTime() : 0;
+    const remoteTs = remote.payload.updatedAt ? new Date(remote.payload.updatedAt).getTime() : 0;
+    if (localTs >= remoteTs) return false;
+
+    await applyRemoteSettings(remote.payload);
+    const m = await idbGet('sync_meta', SETTINGS_META_KEY) || { date: SETTINGS_META_KEY };
+    m.sha = remote.sha;
+    await idbPut('sync_meta', m);
+    console.log('[settings] 從 GitHub 拉到較新版本');
+    return true;
+  } catch (err) {
+    console.warn('[settings] 同步失敗:', err);
+    return false;
+  }
+}
+
+async function pushSettingsNow() {
+  const now = new Date().toISOString();
+  const meta = await idbGet('sync_meta', SETTINGS_META_KEY) || { date: SETTINGS_META_KEY };
+  meta.lastWrittenAt = now;
+  await idbPut('sync_meta', meta);
+
+  const cfg = await getGithubConfig();
+  if (!cfg) return;
+  if (!navigator.onLine) return;
+
+  try {
+    await pushSettings(cfg);
+    console.log('[settings] 已推到 GitHub');
+  } catch (err) {
+    console.warn('[settings] 推送失敗:', err);
+  }
+}
+
 async function fetchRemoteDay(cfg, dateStr) {
   const path = `days/${dateStr}.json`;
   const url = `https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/${path}`;
@@ -2683,16 +2950,19 @@ async function renderSupplementCard() {
 
   const rec = await idbGet('supplements', currentDate);
   const settings = await idbGet('settings', 'supplements');
-  const list = (settings && settings.value) ? settings.value : DEFAULT_SUPPLEMENTS;
+  const rawList = (settings && settings.value) ? settings.value : DEFAULT_SUPPLEMENTS;
+  // 正規化:支援字串(舊) 或 {name, note}(新)
+  const list = rawList.map(item => typeof item === 'string' ? { name: item, note: '' } : item);
+  const names = list.map(it => it.name);
 
-  const taken = new Set((rec && rec.taken) ? rec.taken : list);
+  const taken = new Set((rec && rec.taken) ? rec.taken : names);
 
   countEl.textContent = `${taken.size} / ${list.length}`;
 
   body.innerHTML = `<div class="chip-row">${
-    list.map(name => {
-      const on = taken.has(name);
-      return `<div class="chip ${on ? 'on' : 'off'}" data-name="${esc(name)}">${on ? '✓' : ''} ${esc(name)}</div>`;
+    list.map(it => {
+      const on = taken.has(it.name);
+      return `<div class="chip ${on ? 'on' : 'off'}" data-name="${esc(it.name)}">${on ? '✓' : ''} ${esc(it.name)}</div>`;
     }).join('')
   }</div>`;
 
@@ -2700,7 +2970,7 @@ async function renderSupplementCard() {
     chip.addEventListener('click', async () => {
       const name = chip.dataset.name;
       const rec = await idbGet('supplements', currentDate);
-      const taken = new Set((rec && rec.taken) ? rec.taken : list);
+      const taken = new Set((rec && rec.taken) ? rec.taken : names);
       if (taken.has(name)) taken.delete(name); else taken.add(name);
       await idbPut('supplements', { date: currentDate, taken: [...taken] });
       renderSupplementCard();
@@ -2944,7 +3214,104 @@ async function openMealListModal() {
 function renderMealModal() {
   const d = currentMealDraft;
   const isEdit = d.id != null;
+  // 飲料快選模式判定:
+  // - 餐別 drink、且非編輯既有資料、且還沒新增任何食材
+  // (一旦切到「手動填寫」之後、items 會有東西、就跳出快選模式)
+  const isDrinkQuick = d.mealType === 'drink' && !isEdit && (!d.items || d.items.length === 0)
+                      && !d.summary && d.totalKcal == null && d.totalProtein == null
+                      && !d._switchedToManual;
 
+  if (isDrinkQuick) {
+    // === 飲料快選模式 ===
+    openModal(`
+      <div class="modal-header">
+        <div class="modal-title">快速新增飲料 · ${currentDate}</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+
+      <div class="field">
+        <label class="field-label">餐別</label>
+        <div class="segment" id="meal-type-segment">
+          ${MEAL_TYPES.map(t =>
+            `<button data-type="${t.key}" class="${d.mealType === t.key ? 'active' : ''}">${t.label}</button>`
+          ).join('')}
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">咖啡</label>
+        <div class="drink-quick-row">
+          <button class="drink-quick-chip" data-drink="美式">美式</button>
+          <button class="drink-quick-chip" data-drink="拿鐵">拿鐵</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">茶飲</label>
+        <div class="drink-quick-row">
+          <button class="drink-quick-chip" data-drink="全糖茶">全糖</button>
+          <button class="drink-quick-chip" data-drink="半糖茶">半糖</button>
+          <button class="drink-quick-chip" data-drink="微糖茶">微糖</button>
+          <button class="drink-quick-chip" data-drink="無糖茶">無糖</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">其他</label>
+        <div class="drink-quick-row">
+          <button class="drink-quick-chip drink-quick-other" data-drink="__manual__">手動填寫</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      </div>
+    `);
+
+    // 餐別切換 — 切到非飲料 → 重新 render 進入完整模式
+    document.querySelectorAll('#meal-type-segment button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentMealDraft.mealType = btn.dataset.type;
+        renderMealModal();
+      });
+    });
+
+    // 飲料快選 chip 點擊
+    document.querySelectorAll('.drink-quick-chip').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const label = btn.dataset.drink;
+        if (label === '__manual__') {
+          // 切到手動模式:標記 _switchedToManual,重新 render
+          currentMealDraft._switchedToManual = true;
+          renderMealModal();
+          return;
+        }
+        // 直接 save 一筆 meal
+        currentMealDraft.summary = label;
+        currentMealDraft.items = [];
+        currentMealDraft.totalKcal = null;
+        currentMealDraft.totalProtein = null;
+        delete currentMealDraft._switchedToManual;
+        // 直接寫入 IDB,不走完整 saveMeal (因為它會讀 form input)
+        const rec = {
+          date: currentMealDraft.date,
+          mealType: currentMealDraft.mealType,
+          summary: label,
+          items: [],
+          totalKcal: null,
+          totalProtein: null
+        };
+        await idbPut('meals', rec);
+        await markDirty(currentDate);
+        closeModal();
+        toast(`已新增${label}`);
+        renderMealCard();
+      });
+    });
+    return;
+  }
+
+  // === 一般模式(完整 modal)===
   openModal(`
     <div class="modal-header">
       <div class="modal-title">${isEdit ? '編輯' : '新增'}餐點 · ${currentDate}</div>
@@ -2995,6 +3362,16 @@ function renderMealModal() {
   document.querySelectorAll('#meal-type-segment button').forEach(btn => {
     btn.addEventListener('click', () => {
       currentMealDraft.mealType = btn.dataset.type;
+      // 切到 drink、且這筆紀錄是空的 → 切回快選模式
+      if (btn.dataset.type === 'drink' && !isEdit
+          && (!currentMealDraft.items || currentMealDraft.items.length === 0)
+          && !currentMealDraft.summary
+          && currentMealDraft.totalKcal == null
+          && currentMealDraft.totalProtein == null) {
+        delete currentMealDraft._switchedToManual;
+        renderMealModal();
+        return;
+      }
       document.querySelectorAll('#meal-type-segment button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     });
@@ -3094,9 +3471,17 @@ window.deleteMeal = async function() {
 };
 
 // ---------- 保健品 Modal (管理清單) ----------
+// 正規化:支援字串 (舊) 跟 {name, note} (新)
+function normalizeSuppItem(item) {
+  if (typeof item === 'string') return { name: item, note: '' };
+  if (item && typeof item === 'object') return { name: item.name || '', note: item.note || '' };
+  return { name: '', note: '' };
+}
+
 async function openSupplementModal() {
   const settings = await idbGet('settings', 'supplements');
-  const list = (settings && settings.value) ? [...settings.value] : [...DEFAULT_SUPPLEMENTS];
+  const rawList = (settings && settings.value) ? [...settings.value] : [...DEFAULT_SUPPLEMENTS];
+  const list = rawList.map(normalizeSuppItem);
 
   openModal(`
     <div class="modal-header">
@@ -3108,8 +3493,9 @@ async function openSupplementModal() {
       <div id="supp-list"></div>
       <button class="detail-add-btn" id="btn-add-supp">+ 新增保健品</button>
     </div>
-    <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">
-      清單變更後,今日以後預設為全部已服用。歷史紀錄不變。
+    <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">
+      清單變更後,今日以後預設為全部已服用。歷史紀錄不變。<br>
+      成分備註僅供參考、未來分析使用,不會影響卡路里或合計。
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -3125,7 +3511,7 @@ async function openSupplementModal() {
 
   document.getElementById('btn-add-supp').addEventListener('click', () => {
     syncSuppInputs();
-    window._suppDraft.push('');
+    window._suppDraft.push({ name: '', note: '' });
     renderSuppList();
   });
 }
@@ -3158,12 +3544,15 @@ function renderSuppList() {
 
 window.saveSuppList = async function() {
   syncSuppInputs();
-  const list = window._suppDraft.map(s => s.trim()).filter(s => s);
+  const list = window._suppDraft
+    .map(item => ({ name: (item.name || '').trim(), note: (item.note || '').trim() }))
+    .filter(item => item.name);
   if (list.length === 0) { toast('至少需要一項'); return; }
   await idbPut('settings', { key: 'supplements', value: list });
   closeModal();
   toast('已儲存');
   renderSupplementCard();
+  pushSettingsNow();  // 背景推到 GitHub
 };
 
 // ---------- 活動 Modal ----------
@@ -3640,6 +4029,15 @@ async function openSettingsModal() {
 
     <div class="settings-section">
       <div class="settings-section-title">資料管理</div>
+      <div class="settings-row settings-row-action" id="action-manage-supp">
+        <div class="settings-row-info">
+          <div class="settings-row-label">管理保健品清單</div>
+          <div class="settings-row-desc">編輯每天服用的保健品、添加成分備註</div>
+        </div>
+        <span class="settings-row-arrow">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13"/></svg>
+        </span>
+      </div>
       <div class="settings-row settings-row-action" id="action-resync">
         <div class="settings-row-info">
           <div class="settings-row-label">重新同步到 GitHub</div>
@@ -3720,6 +4118,10 @@ async function openSettingsModal() {
   `);
 
   // 綁定資料管理動作
+  document.getElementById('action-manage-supp').addEventListener('click', () => {
+    closeModal();
+    openSupplementModal();
+  });
   document.getElementById('action-resync').addEventListener('click', () => {
     closeModal();
     manualResync();
@@ -4045,6 +4447,13 @@ function bindEvents() {
         if (pulled) renderAll();
       } catch (err) {
         console.warn('Pull on init failed:', err);
+      }
+      // 拉 settings (保健品清單) 最新版
+      try {
+        const settingsUpdated = await lazyPullSettings(true);
+        if (settingsUpdated) renderSupplementCard();
+      } catch (err) {
+        console.warn('Settings pull on init failed:', err);
       }
       // 再推 queue
       await syncToGithub();
