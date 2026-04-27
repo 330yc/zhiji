@@ -632,6 +632,19 @@ button {
   background: var(--info);
 }
 
+.activity-dot.resist {
+  background: var(--success);
+}
+
+.activity-summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 0.5px solid var(--border);
+  line-height: 1.5;
+}
+
 .activity-meta {
   font-size: 11px;
   color: var(--text-secondary);
@@ -2000,7 +2013,8 @@ const COOKING_LEVEL = {
 };
 const ACTIVITY_TYPES = [
   { key: 'walk', label: '走路' },
-  { key: 'bike', label: '腳踏車' }
+  { key: 'bike', label: '腳踏車' },
+  { key: 'resist', label: '阻力訓練' }
 ];
 
 let currentDate = fmtDate(new Date());
@@ -2436,20 +2450,34 @@ async function renderActivityCard() {
     return;
   }
 
-  body.innerHTML = acts.map(a => {
-    const typeLabel = ACTIVITY_TYPES.find(t => t.key === a.type)?.label || a.type;
-    const dotClass = a.type === 'bike' ? 'bike' : '';
-    const meta = [];
-    if (a.distance) meta.push(`${a.distance} km`);
-    if (a.duration) meta.push(`${a.duration} 分鐘`);
-    return `<div class="activity-item">
-      <div class="activity-label">
-        <div class="activity-dot ${dotClass}"></div>
-        <div>${typeLabel}</div>
-      </div>
-      <div class="activity-meta">${meta.join(' · ')}</div>
-    </div>`;
-  }).join('');
+  // 找出 summary (任一筆有就用)
+  const summary = acts.find(a => a.summary)?.summary || '';
+  // 過濾掉「只有 summary 的 note」row,實際 row 只顯示有資料的
+  const realActs = acts.filter(a => a.type !== 'note');
+
+  let html = '';
+  if (summary) {
+    html += `<div class="activity-summary">${esc(summary)}</div>`;
+  }
+
+  if (realActs.length > 0) {
+    html += realActs.map(a => {
+      const typeLabel = ACTIVITY_TYPES.find(t => t.key === a.type)?.label || a.type;
+      const dotClass = a.type === 'bike' ? 'bike' : (a.type === 'resist' ? 'resist' : '');
+      const meta = [];
+      if (a.distance != null) meta.push(`${a.distance} km`);
+      if (a.duration != null) meta.push(`${a.duration} 分鐘`);
+      return `<div class="activity-item">
+        <div class="activity-label">
+          <div class="activity-dot ${dotClass}"></div>
+          <div>${typeLabel}</div>
+        </div>
+        <div class="activity-meta">${meta.join(' · ')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  body.innerHTML = html;
 }
 
 // ---------- Utils ----------
@@ -2523,11 +2551,11 @@ async function openWeightModal() {
       </div>
     </div>
     <div class="modal-actions">
-      ${existing.weight != null ? '<button class="btn btn-danger" onclick="deleteWeight()">刪除</button>' : ''}
-      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      ${existing.weight != null ? '<button class="btn btn-danger" onclick="deleteWeight()">Delete</button>' : ''}
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-check" onclick="saveWeight()">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L6.5 11.5L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        儲存
+        Save
       </button>
     </div>
   `);
@@ -2629,11 +2657,11 @@ function renderMealModal() {
     </div>
 
     <div class="modal-actions">
-      ${isEdit ? '<button class="btn btn-danger" onclick="deleteMeal()">刪除</button>' : ''}
-      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      ${isEdit ? '<button class="btn btn-danger" onclick="deleteMeal()">Delete</button>' : ''}
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-check" onclick="saveMeal()">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L6.5 11.5L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        儲存
+        Save
       </button>
     </div>
   `);
@@ -2758,10 +2786,10 @@ async function openSupplementModal() {
       清單變更後,今日以後預設為全部已服用。歷史紀錄不變。
     </div>
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-check" onclick="saveSuppList()">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L6.5 11.5L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        儲存
+        Save
       </button>
     </div>
   `);
@@ -2817,8 +2845,12 @@ let activityDraft = [];
 
 async function openActivityModal() {
   const existing = await idbGetByIndex('activities', 'date', currentDate);
-  activityDraft = existing.length > 0 ? existing.map(a => ({ ...a })) : [{ date: currentDate, type: 'walk', distance: '', duration: '' }];
-
+  // 從現有資料找 summary (所有 row 的 summary 應該一樣,取第一個非空的)
+  const existingSummary = existing.find(a => a.summary)?.summary || '';
+  activityDraft = existing.length > 0
+    ? existing.map(a => ({ ...a }))
+    : [{ date: currentDate, type: 'walk', distance: '', duration: '' }];
+  window._activitySummary = existingSummary;
   renderActivityModal();
 }
 
@@ -2828,13 +2860,20 @@ function renderActivityModal() {
       <div class="modal-title">活動紀錄 · ${currentDate}</div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
-    <div id="act-list"></div>
-    <button class="detail-add-btn" id="btn-add-act">+ 新增活動</button>
+    <div class="field">
+      <label class="field-label">簡述 (選填)</label>
+      <input class="field-input" type="text" id="act-summary" value="${esc(window._activitySummary || '')}" placeholder="例: 河堤走路 + 上下階梯">
+    </div>
+    <div class="field">
+      <label class="field-label">明細</label>
+      <div id="act-list"></div>
+      <button class="detail-add-btn" id="btn-add-act">+ 新增活動</button>
+    </div>
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-check" onclick="saveActivities()">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L6.5 11.5L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        儲存
+        Save
       </button>
     </div>
   `);
@@ -2851,7 +2890,8 @@ function renderActivityModal() {
 function syncActivityInputs() {
   document.querySelectorAll('#act-list .detail-item').forEach((el, i) => {
     if (!activityDraft[i]) return;
-    activityDraft[i].distance = el.querySelector('.act-dist').value;
+    const distInput = el.querySelector('.act-dist');
+    activityDraft[i].distance = distInput ? distInput.value : '';
     activityDraft[i].duration = el.querySelector('.act-dur').value;
   });
 }
@@ -2862,8 +2902,9 @@ function renderActivityList() {
     container.innerHTML = '<div class="empty-hint" style="padding:8px 0;">按下方「+」新增</div>';
     return;
   }
-  container.innerHTML = activityDraft.map((a, idx) => `
-    <div class="detail-item" data-idx="${idx}">
+  container.innerHTML = activityDraft.map((a, idx) => {
+    const showDist = a.type !== 'resist';  // 阻力訓練不需要距離
+    return `<div class="detail-item" data-idx="${idx}">
       <button class="detail-item-remove" data-rm="${idx}">×</button>
       <div class="type-chips">
         ${ACTIVITY_TYPES.map(t =>
@@ -2871,11 +2912,11 @@ function renderActivityList() {
         ).join('')}
       </div>
       <div class="field-row" style="margin-top:10px;">
-        <input class="field-input act-dist" type="number" step="0.1" inputmode="decimal" value="${numOrEmpty(a.distance)}" placeholder="距離 (km)">
+        ${showDist ? `<input class="field-input act-dist" type="number" step="0.1" inputmode="decimal" value="${numOrEmpty(a.distance)}" placeholder="距離 (km)">` : ''}
         <input class="field-input act-dur" type="number" step="1" inputmode="decimal" value="${numOrEmpty(a.duration)}" placeholder="時間 (分鐘)">
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   container.querySelectorAll('[data-rm]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2897,16 +2938,25 @@ function renderActivityList() {
 
 window.saveActivities = async function() {
   syncActivityInputs();
+  const summary = (document.getElementById('act-summary')?.value || '').trim();
   const existing = await idbGetByIndex('activities', 'date', currentDate);
   for (const e of existing) {
     await idbDelete('activities', e.id);
   }
+  let savedCount = 0;
   for (const a of activityDraft) {
-    const dist = toNum(a.distance);
+    const dist = a.type === 'resist' ? null : toNum(a.distance);
     const dur = toNum(a.duration);
-    if (dist == null && dur == null) continue;
-    const rec = { date: currentDate, type: a.type, distance: dist, duration: dur };
+    // 阻力訓練只要時間;走路腳踏車要至少其一
+    if (a.type === 'resist' && dur == null) continue;
+    if (a.type !== 'resist' && dist == null && dur == null) continue;
+    const rec = { date: currentDate, type: a.type, distance: dist, duration: dur, summary };
     await idbPut('activities', rec);
+    savedCount++;
+  }
+  // 如果沒有任何 row 但有 summary,還是存一筆「只有 summary」的
+  if (savedCount === 0 && summary) {
+    await idbPut('activities', { date: currentDate, type: 'note', distance: null, duration: null, summary });
   }
   closeModal();
   toast('已儲存');
