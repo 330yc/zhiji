@@ -1003,6 +1003,28 @@ button {
   border-style: solid;
 }
 
+.drink-quick-chip.selected {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent);
+  border-style: solid;
+}
+
+.drink-manual-input {
+  margin-top: 8px;
+  transition: max-height 0.2s, opacity 0.2s, margin 0.2s, padding 0.2s, border-width 0.2s;
+}
+
+.drink-manual-input.hidden {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  border-width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .list-modal-hint {
   font-size: 11px;
   color: var(--text-tertiary);
@@ -3214,18 +3236,23 @@ async function openMealListModal() {
 function renderMealModal() {
   const d = currentMealDraft;
   const isEdit = d.id != null;
-  // 飲料快選模式判定:
-  // - 餐別 drink、且非編輯既有資料、且還沒新增任何食材
-  // (一旦切到「手動填寫」之後、items 會有東西、就跳出快選模式)
-  const isDrinkQuick = d.mealType === 'drink' && !isEdit && (!d.items || d.items.length === 0)
-                      && !d.summary && d.totalKcal == null && d.totalProtein == null
-                      && !d._switchedToManual;
+  const isDrink = d.mealType === 'drink';
 
-  if (isDrinkQuick) {
-    // === 飲料快選模式 ===
+  // 飲料專屬選項
+  const DRINK_PRESETS = {
+    coffee: ['美式', '拿鐵'],
+    tea: ['全糖', '半糖', '微糖', '無糖']
+  };
+  // 判斷簡述是否符合任一預設(用於高亮)
+  const summary = d.summary || '';
+  const matchedPreset = [...DRINK_PRESETS.coffee, ...DRINK_PRESETS.tea].includes(summary);
+  // 「手動填寫」展開狀態:有簡述、但不符合任何預設
+  const showManualInput = isDrink && summary && !matchedPreset;
+
+  if (isDrink) {
     openModal(`
       <div class="modal-header">
-        <div class="modal-title">快速新增飲料 · ${currentDate}</div>
+        <div class="modal-title">${isEdit ? '編輯' : '新增'}飲料 · ${currentDate}</div>
         <button class="modal-close" onclick="closeModal()">×</button>
       </div>
 
@@ -3241,77 +3268,102 @@ function renderMealModal() {
       <div class="field">
         <label class="field-label">咖啡</label>
         <div class="drink-quick-row">
-          <button class="drink-quick-chip" data-drink="美式">美式</button>
-          <button class="drink-quick-chip" data-drink="拿鐵">拿鐵</button>
+          ${DRINK_PRESETS.coffee.map(name =>
+            `<button class="drink-quick-chip ${summary === name ? 'selected' : ''}" data-drink="${name}">${name}</button>`
+          ).join('')}
         </div>
       </div>
 
       <div class="field">
         <label class="field-label">茶飲</label>
         <div class="drink-quick-row">
-          <button class="drink-quick-chip" data-drink="全糖茶">全糖</button>
-          <button class="drink-quick-chip" data-drink="半糖茶">半糖</button>
-          <button class="drink-quick-chip" data-drink="微糖茶">微糖</button>
-          <button class="drink-quick-chip" data-drink="無糖茶">無糖</button>
+          ${DRINK_PRESETS.tea.map(name =>
+            `<button class="drink-quick-chip ${summary === name ? 'selected' : ''}" data-drink="${name}">${name}</button>`
+          ).join('')}
         </div>
       </div>
 
       <div class="field">
         <label class="field-label">其他</label>
         <div class="drink-quick-row">
-          <button class="drink-quick-chip drink-quick-other" data-drink="__manual__">手動填寫</button>
+          <button class="drink-quick-chip drink-quick-other ${showManualInput ? 'selected' : ''}" data-drink="__manual__">手動填寫</button>
         </div>
+        <input class="field-input drink-manual-input ${showManualInput ? '' : 'hidden'}" type="text" id="drink-manual" value="${esc(showManualInput ? summary : '')}" placeholder="輸入飲料名稱">
+      </div>
+
+      <div class="field">
+        <label class="field-label">熱量 (kcal)</label>
+        <input class="field-input" type="number" step="1" inputmode="decimal" id="f-kcal" value="${numOrEmpty(d.totalKcal)}">
       </div>
 
       <div class="modal-actions">
+        ${isEdit ? '<button class="btn btn-danger" onclick="deleteMeal()">Delete</button>' : ''}
         <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-check" onclick="saveDrinkMeal()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L6.5 11.5L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Save
+        </button>
       </div>
     `);
 
-    // 餐別切換 — 切到非飲料 → 重新 render 進入完整模式
+    // 餐別切換
     document.querySelectorAll('#meal-type-segment button').forEach(btn => {
       btn.addEventListener('click', () => {
+        // 同步當前的熱量(切換餐別前保留)
+        const kcalInput = document.getElementById('f-kcal');
+        if (kcalInput) currentMealDraft.totalKcal = toNum(kcalInput.value);
         currentMealDraft.mealType = btn.dataset.type;
-        renderMealModal();
+        renderMealModal();  // 切到非飲料就會走完整 modal
       });
     });
 
-    // 飲料快選 chip 點擊
+    // 飲料快選 chip 點擊 — 互斥邏輯
     document.querySelectorAll('.drink-quick-chip').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', () => {
         const label = btn.dataset.drink;
+        // 同步現有熱量(避免重 render 時遺失)
+        const kcalInput = document.getElementById('f-kcal');
+        if (kcalInput) currentMealDraft.totalKcal = toNum(kcalInput.value);
+
         if (label === '__manual__') {
-          // 切到手動模式:標記 _switchedToManual,重新 render
-          currentMealDraft._switchedToManual = true;
+          // 點手動填寫:清掉現有簡述、標記為手動模式、顯示 input
+          const manualInput = document.getElementById('drink-manual');
+          const isShown = manualInput && !manualInput.classList.contains('hidden');
+          if (isShown) {
+            // 已展開、再點一次收合(取消手動模式)
+            currentMealDraft.summary = '';
+            renderMealModal();
+          } else {
+            // 展開:清掉預設選的、進入手動模式(用一個特殊標記、避免被當預設值)
+            currentMealDraft.summary = '';
+            currentMealDraft._manualMode = true;
+            renderMealModal();
+            // render 後聚焦
+            setTimeout(() => {
+              const inp = document.getElementById('drink-manual');
+              if (inp) inp.focus();
+            }, 50);
+          }
+        } else {
+          // 點預設 chip:設為簡述、清掉手動模式
+          currentMealDraft.summary = label;
+          delete currentMealDraft._manualMode;
           renderMealModal();
-          return;
         }
-        // 直接 save 一筆 meal
-        currentMealDraft.summary = label;
-        currentMealDraft.items = [];
-        currentMealDraft.totalKcal = null;
-        currentMealDraft.totalProtein = null;
-        delete currentMealDraft._switchedToManual;
-        // 直接寫入 IDB,不走完整 saveMeal (因為它會讀 form input)
-        const rec = {
-          date: currentMealDraft.date,
-          mealType: currentMealDraft.mealType,
-          summary: label,
-          items: [],
-          totalKcal: null,
-          totalProtein: null
-        };
-        await idbPut('meals', rec);
-        await markDirty(currentDate);
-        closeModal();
-        toast(`已新增${label}`);
-        renderMealCard();
       });
     });
+
+    // 手動填寫 input 即時更新 currentMealDraft.summary (避免 lost focus 後消失)
+    const manualInput = document.getElementById('drink-manual');
+    if (manualInput) {
+      manualInput.addEventListener('input', (e) => {
+        currentMealDraft.summary = e.target.value;
+      });
+    }
     return;
   }
 
-  // === 一般模式(完整 modal)===
+  // === 一般模式 (非飲料) ===
   openModal(`
     <div class="modal-header">
       <div class="modal-title">${isEdit ? '編輯' : '新增'}餐點 · ${currentDate}</div>
@@ -3361,15 +3413,11 @@ function renderMealModal() {
 
   document.querySelectorAll('#meal-type-segment button').forEach(btn => {
     btn.addEventListener('click', () => {
+      // 切到飲料前、同步當前 form
+      syncMealFormInputs();
       currentMealDraft.mealType = btn.dataset.type;
-      // 切到 drink、且這筆紀錄是空的 → 切回快選模式
-      if (btn.dataset.type === 'drink' && !isEdit
-          && (!currentMealDraft.items || currentMealDraft.items.length === 0)
-          && !currentMealDraft.summary
-          && currentMealDraft.totalKcal == null
-          && currentMealDraft.totalProtein == null) {
-        delete currentMealDraft._switchedToManual;
-        renderMealModal();
+      if (btn.dataset.type === 'drink') {
+        renderMealModal();  // 重新渲染進入飲料模式
         return;
       }
       document.querySelectorAll('#meal-type-segment button').forEach(b => b.classList.remove('active'));
@@ -3458,6 +3506,31 @@ window.saveMeal = async function() {
   toast('已儲存');
   renderMealCard();
   markDirty(d.date || currentDate);
+};
+
+window.saveDrinkMeal = async function() {
+  const d = currentMealDraft;
+  // 從 form 同步 (簡述其實 manual 模式時、input event 已經更新、但 kcal 要讀)
+  const kcalInput = document.getElementById('f-kcal');
+  d.totalKcal = toNum(kcalInput?.value);
+  // 簡述如果是手動模式、從 input 拉最新值
+  const manualInput = document.getElementById('drink-manual');
+  if (manualInput && !manualInput.classList.contains('hidden')) {
+    d.summary = manualInput.value.trim();
+  }
+  if (!d.summary) {
+    toast('請選擇或輸入飲料');
+    return;
+  }
+  // 飲料 meal 沒有食材、沒有蛋白質
+  d.items = [];
+  d.totalProtein = null;
+  delete d._manualMode;
+  await idbPut('meals', d);
+  await markDirty(currentDate);
+  closeModal();
+  toast(d.id ? '已更新' : `已新增${d.summary}`);
+  renderMealCard();
 };
 
 window.deleteMeal = async function() {
