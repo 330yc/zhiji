@@ -3517,27 +3517,49 @@ async function openSupplementModal() {
 }
 
 function syncSuppInputs() {
-  document.querySelectorAll('#supp-list .field-input').forEach((el, i) => {
-    window._suppDraft[i] = el.value;
+  document.querySelectorAll('#supp-list .supp-edit-item').forEach((el, i) => {
+    if (!window._suppDraft[i]) return;
+    const nameInput = el.querySelector('.supp-name');
+    const noteInput = el.querySelector('.supp-note');
+    window._suppDraft[i] = {
+      name: nameInput ? nameInput.value : '',
+      note: noteInput ? noteInput.value : ''
+    };
   });
 }
 
 function renderSuppList() {
   const list = window._suppDraft || [];
   const container = document.getElementById('supp-list');
-  container.innerHTML = list.map((name, i) => `
-    <div class="detail-item" style="padding:8px 10px;">
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input class="field-input" type="text" value="${esc(name)}" placeholder="保健品名稱">
-        <button style="color:var(--text-tertiary);font-size:18px;padding:4px 8px;" data-rm="${i}">×</button>
+  container.innerHTML = list.map((item, i) => `
+    <div class="detail-item supp-edit-item" data-idx="${i}">
+      <div class="supp-edit-row">
+        <input class="field-input supp-name" type="text" value="${esc(item.name || '')}" placeholder="保健品名稱">
+        <button class="supp-toggle-note" data-toggle-note="${i}" title="成分備註">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 4h10M3 8h10M3 12h7"/>
+          </svg>
+        </button>
+        <button class="supp-remove" data-rm="${i}">×</button>
       </div>
+      <textarea class="field-input supp-note ${item.note ? '' : 'collapsed'}" data-note-idx="${i}" placeholder="成分備註(選填):貼上營養標示、產品資訊等" rows="6">${esc(item.note || '')}</textarea>
     </div>
   `).join('');
+
   container.querySelectorAll('[data-rm]').forEach(btn => {
     btn.addEventListener('click', () => {
       syncSuppInputs();
       window._suppDraft.splice(Number(btn.dataset.rm), 1);
       renderSuppList();
+    });
+  });
+
+  container.querySelectorAll('[data-toggle-note]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = btn.dataset.toggleNote;
+      const ta = container.querySelector(`textarea[data-note-idx="${idx}"]`);
+      if (ta) ta.classList.toggle('collapsed');
+      btn.classList.toggle('active');
     });
   });
 }
