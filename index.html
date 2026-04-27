@@ -324,6 +324,25 @@ button {
   display: block;
 }
 
+/* 雙 button 容器 */
+.card-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 次要 button:白底 + 細邊框 (跟主 button 區隔) */
+.edit-btn.edit-btn-secondary {
+  background: transparent;
+  border: 0.5px solid var(--border);
+  color: var(--text-tertiary);
+}
+.edit-btn.edit-btn-secondary:hover {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-color: var(--text-tertiary);
+}
+
 .empty-hint {
   font-size: 13px;
   color: var(--text-tertiary);
@@ -656,14 +675,8 @@ button {
   align-items: center;
   padding: 8px 0 8px 10px;
   margin-bottom: 4px;
-  cursor: pointer;
   border-left: 2px solid var(--accent-bg);
-  transition: background 0.15s;
   border-radius: 0 4px 4px 0;
-}
-
-.meal-item:hover {
-  background: rgba(232, 226, 211, 0.3);
 }
 
 .meal-item-info {
@@ -869,6 +882,81 @@ button {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr;
   gap: 10px;
+}
+
+.list-modal-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin: 4px 0 12px;
+  font-style: italic;
+}
+
+.list-modal-rows {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.list-item {
+  display: grid;
+  grid-template-columns: 1fr auto 16px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.list-item:hover {
+  background: var(--bg-secondary);
+}
+
+.list-item-info {
+  min-width: 0;
+}
+
+.list-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.list-item-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-item-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.list-item-meta .meta-kcal {
+  color: #B88625;
+}
+
+.list-item-meta .meta-prot {
+  color: #6B7C4F;
+}
+
+.list-item-arrow {
+  color: var(--text-tertiary);
+}
+
+.list-item-arrow svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .modal-actions {
@@ -1420,7 +1508,7 @@ button {
 <div class="card" id="card-weight">
   <div class="card-header">
     <div class="card-title">Body Composition</div>
-    <button class="edit-btn" data-modal="weight" title="新增/編輯">
+    <button class="edit-btn" data-action="weight" id="btn-weight-action" title="新增/編輯">
       <svg viewBox="0 0 16 16" fill="none">
         <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
@@ -1432,11 +1520,19 @@ button {
 <div class="card" id="card-meal">
   <div class="card-header">
     <div class="card-title">Meals</div>
-    <button class="edit-btn" data-modal="meal" title="新增/編輯">
-      <svg viewBox="0 0 16 16" fill="none">
-        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>
-    </button>
+    <div class="card-header-actions">
+      <button class="edit-btn edit-btn-secondary" data-action="meal-edit" title="編輯">
+        <svg viewBox="0 0 16 16" fill="none">
+          <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          <path d="M10 3L13 6" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+      </button>
+      <button class="edit-btn" data-action="meal-add" title="新增">
+        <svg viewBox="0 0 16 16" fill="none">
+          <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <div id="meal-body"></div>
 </div>
@@ -1447,11 +1543,6 @@ button {
       Supplements
       <span class="card-title-meta" id="supp-count">—</span>
     </div>
-    <button class="edit-btn" data-modal="supp" title="新增/編輯">
-      <svg viewBox="0 0 16 16" fill="none">
-        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>
-    </button>
   </div>
   <div id="supp-body"></div>
 </div>
@@ -1459,11 +1550,19 @@ button {
 <div class="card" id="card-activity">
   <div class="card-header">
     <div class="card-title">Activity</div>
-    <button class="edit-btn" data-modal="activity" title="新增/編輯">
-      <svg viewBox="0 0 16 16" fill="none">
-        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>
-    </button>
+    <div class="card-header-actions">
+      <button class="edit-btn edit-btn-secondary" data-action="activity-edit" title="編輯">
+        <svg viewBox="0 0 16 16" fill="none">
+          <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          <path d="M10 3L13 6" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+      </button>
+      <button class="edit-btn" data-action="activity-add" title="新增">
+        <svg viewBox="0 0 16 16" fill="none">
+          <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <div id="activity-body"></div>
 </div>
@@ -2233,6 +2332,21 @@ async function renderWeightCard() {
   const body = document.getElementById('weight-body');
   const raw = await idbGet('weight', currentDate);
   const w = calcDerived(raw);
+  // 依資料狀態切換 icon (沒資料 → +、有資料 → 鉛筆)
+  const btn = document.getElementById('btn-weight-action');
+  if (btn) {
+    const hasData = !!(raw && raw.weight != null);
+    btn.classList.toggle('edit-btn-secondary', hasData);
+    btn.title = hasData ? '編輯' : '新增';
+    btn.innerHTML = hasData
+      ? `<svg viewBox="0 0 16 16" fill="none">
+          <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          <path d="M10 3L13 6" stroke="currentColor" stroke-width="1.2"/>
+        </svg>`
+      : `<svg viewBox="0 0 16 16" fill="none">
+          <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>`;
+  }
 
   if (!w || w.weight == null) {
     body.innerHTML = '<div class="empty-hint">尚未紀錄</div>';
@@ -2559,12 +2673,7 @@ async function renderMealCard() {
 
   body.innerHTML = headerHtml + itemsHtml + totalRow;
 
-  body.querySelectorAll('.meal-item').forEach(el => {
-    el.addEventListener('click', () => {
-      const id = Number(el.dataset.mealId);
-      openMealModal(id);
-    });
-  });
+  // (已移除主卡片 row 的 click 綁定,避免誤觸。修改請走 ✏️ 鉛筆按鈕)
 }
 
 // ---------- 保健品卡 ----------
@@ -2754,17 +2863,19 @@ let currentMealDraft = null;
 async function openMealModal(editId = null) {
   let draft;
   if (editId != null) {
-    const tx = db.transaction('meals', 'readonly');
-    const rec = await new Promise(res => {
-      const req = tx.objectStore('meals').get(editId);
-      req.onsuccess = () => res(req.result);
-    });
+    const rec = await idbGet('meals', editId);
     draft = rec ? { ...rec } : null;
   }
   if (!draft) {
+    // 全空白:預設用「合理猜測」的餐別 (依時段),其他全空
+    const hour = new Date().getHours();
+    const guessMealType =
+      hour < 10 ? 'breakfast' :
+      hour < 14 ? 'lunch' :
+      hour < 18 ? 'snack' : 'dinner';
     draft = {
       date: currentDate,
-      mealType: 'lunch',
+      mealType: guessMealType,
       summary: '',
       items: [],
       totalKcal: null,
@@ -2773,6 +2884,61 @@ async function openMealModal(editId = null) {
   }
   currentMealDraft = draft;
   renderMealModal();
+}
+
+// 列表 modal:給 ✏️ 鉛筆按鈕用、列出當天所有 meal、點某筆進編輯
+async function openMealListModal() {
+  const meals = await idbGetByIndex('meals', 'date', currentDate);
+  if (meals.length === 0) {
+    toast('今天還沒有餐點紀錄');
+    return;
+  }
+
+  // 依餐別順序排列
+  const ordered = [];
+  MEAL_TYPES.forEach(mt => {
+    meals.filter(m => m.mealType === mt.key).forEach(m => {
+      ordered.push({ ...m, typeLabel: mt.label });
+    });
+  });
+
+  const listHtml = ordered.map(m => {
+    const desc = m.summary || (m.items && m.items.length ? m.items.map(i => i.name).join('、') : '');
+    const kcal = m.totalKcal ? Math.round(m.totalKcal).toLocaleString('en-US') : '';
+    const prot = m.totalProtein ? Math.round(m.totalProtein) : '';
+    return `<div class="list-item" data-meal-id="${m.id}">
+      <div class="list-item-info">
+        <div class="list-item-title">${m.typeLabel}</div>
+        ${desc ? `<div class="list-item-desc">${esc(desc)}</div>` : ''}
+      </div>
+      <div class="list-item-meta">
+        ${kcal ? `<span class="meta-kcal">${kcal}</span>` : ''}
+        ${prot ? `<span class="meta-prot">${prot}g P</span>` : ''}
+      </div>
+      <div class="list-item-arrow">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13"/></svg>
+      </div>
+    </div>`;
+  }).join('');
+
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">編輯餐點 · ${currentDate}</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="list-modal-hint">點擊任一筆紀錄進入編輯</div>
+    <div class="list-modal-rows">${listHtml}</div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    </div>
+  `);
+
+  document.querySelectorAll('.list-item[data-meal-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = Number(el.dataset.mealId);
+      openMealModal(id);  // 開單筆編輯
+    });
+  });
 }
 
 function renderMealModal() {
@@ -3003,21 +3169,46 @@ window.saveSuppList = async function() {
 // ---------- 活動 Modal ----------
 let activityDraft = [];
 
-async function openActivityModal() {
+// 開啟 Activity 編輯/新增 modal
+// mode: 'add' 強制空白(用於 + 按鈕)、不傳 = 載入當日全部
+async function openActivityModal(opts = {}) {
   const existing = await idbGetByIndex('activities', 'date', currentDate);
-  // 從現有資料找 summary (所有 row 的 summary 應該一樣,取第一個非空的)
   const existingSummary = existing.find(a => a.summary)?.summary || '';
-  activityDraft = existing.length > 0
-    ? existing.map(a => ({ ...a }))
-    : [{ date: currentDate, type: 'walk', distance: '', duration: '' }];
-  window._activitySummary = existingSummary;
+  if (opts.mode === 'add') {
+    // 新增模式:從空白 row 開始
+    activityDraft = [{ date: currentDate, type: 'walk', distance: '', duration: '' }];
+    window._activitySummary = '';  // 新增模式不帶舊 summary (避免覆蓋)
+    window._activityMode = 'add';
+  } else {
+    activityDraft = existing.length > 0
+      ? existing.map(a => ({ ...a }))
+      : [{ date: currentDate, type: 'walk', distance: '', duration: '' }];
+    window._activitySummary = existingSummary;
+    window._activityMode = 'edit';
+  }
   renderActivityModal();
+}
+
+// + 號入口:新增空白
+async function openActivityAddModal() {
+  await openActivityModal({ mode: 'add' });
+}
+
+// ✏️ 入口:列表模式 (但 Activity 結構簡單、直接用一般 modal 顯示所有 row 編輯)
+// 跟 Meals 不同,Activity row 數通常 1-3 筆、直接列出所有 row 編輯比再開一層 modal 順手
+async function openActivityListModal() {
+  const existing = await idbGetByIndex('activities', 'date', currentDate);
+  if (existing.length === 0) {
+    toast('今天還沒有活動紀錄');
+    return;
+  }
+  await openActivityModal();  // 載入全部 row 編輯
 }
 
 function renderActivityModal() {
   openModal(`
     <div class="modal-header">
-      <div class="modal-title">活動紀錄 · ${currentDate}</div>
+      <div class="modal-title">${window._activityMode === 'add' ? '新增活動' : '編輯活動'} · ${currentDate}</div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="field">
@@ -3099,23 +3290,40 @@ function renderActivityList() {
 window.saveActivities = async function() {
   syncActivityInputs();
   const summary = (document.getElementById('act-summary')?.value || '').trim();
-  const existing = await idbGetByIndex('activities', 'date', currentDate);
-  for (const e of existing) {
-    await idbDelete('activities', e.id);
+  const isAddMode = window._activityMode === 'add';
+
+  if (!isAddMode) {
+    // 編輯模式:砍掉重練 (跟原本一樣)
+    const existing = await idbGetByIndex('activities', 'date', currentDate);
+    for (const e of existing) {
+      await idbDelete('activities', e.id);
+    }
+  } else {
+    // 新增模式:如果 summary 跟既有不同,要更新所有舊紀錄的 summary
+    if (summary) {
+      const existing = await idbGetByIndex('activities', 'date', currentDate);
+      for (const e of existing) {
+        if (e.summary !== summary) {
+          e.summary = summary;
+          await idbPut('activities', e);
+        }
+      }
+    }
   }
+
   let savedCount = 0;
   for (const a of activityDraft) {
     const dist = a.type === 'resist' ? null : toNum(a.distance);
     const dur = toNum(a.duration);
-    // 阻力訓練只要時間;走路腳踏車要至少其一
     if (a.type === 'resist' && dur == null) continue;
     if (a.type !== 'resist' && dist == null && dur == null) continue;
+    // 新增模式時、用使用者填的 summary;編輯模式同理
     const rec = { date: currentDate, type: a.type, distance: dist, duration: dur, summary };
     await idbPut('activities', rec);
     savedCount++;
   }
-  // 如果沒有任何 row 但有 summary,還是存一筆「只有 summary」的
-  if (savedCount === 0 && summary) {
+  if (savedCount === 0 && summary && !isAddMode) {
+    // 編輯模式下、所有 row 都被清空但留下 summary -> 存一筆 note
     await idbPut('activities', { date: currentDate, type: 'note', distance: null, duration: null, summary });
   }
   closeModal();
@@ -3725,13 +3933,15 @@ function bindEvents() {
     }
   });
 
-  document.querySelectorAll('[data-modal]').forEach(btn => {
+  document.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const type = btn.dataset.modal;
-      if (type === 'weight') openWeightModal();
-      else if (type === 'meal') openMealModal();
-      else if (type === 'supp') openSupplementModal();
-      else if (type === 'activity') openActivityModal();
+      const action = btn.dataset.action;
+      if (action === 'weight') openWeightModal();
+      else if (action === 'meal-add') openMealModal();
+      else if (action === 'meal-edit') openMealListModal();
+      else if (action === 'activity-add') openActivityAddModal();
+      else if (action === 'activity-edit') openActivityListModal();
+      else if (action === 'supp') openSupplementModal();
     });
   });
 
