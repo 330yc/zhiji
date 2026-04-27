@@ -1501,9 +1501,14 @@ async function getGithubConfig() {
   return (rec && rec.value && rec.value.token && rec.value.user && rec.value.repo) ? rec.value : null;
 }
 
-// 把某天標記為 dirty (待同步)
+// 把某天標記為 dirty (待同步) 並記錄本機寫入時戳
 async function markDirty(dateStr) {
+  const now = new Date().toISOString();
   await idbPut('sync_queue', { date: dateStr, ts: Date.now() });
+  // 更新本機 day 的「最後寫入時間」(用於合併時跟 remote.updatedAt 比較)
+  const meta = await idbGet('sync_meta', dateStr) || { date: dateStr };
+  meta.lastWrittenAt = now;
+  await idbPut('sync_meta', meta);
   scheduleSyncSoon();
 }
 
@@ -1519,19 +1524,28 @@ async function buildDayPayload(dateStr) {
   const supps = await idbGet('supplements', dateStr);
   const meals = await idbGetByIndex('meals', 'date', dateStr);
   const acts = await idbGetByIndex('activities', 'date', dateStr);
+  // 用本機最後寫入時間當 updatedAt (而非 now)
+  // 這樣只有真的編輯過,才會被視為「比 remote 新」
+  const meta = await idbGet('sync_meta', dateStr);
+  const updatedAt = (meta && meta.lastWrittenAt) ? meta.lastWrittenAt : new Date(0).toISOString();
   return {
     date: dateStr,
     weight: weight || null,
     supplements: supps || null,
     meals: meals || [],
     activities: acts || [],
-    updatedAt: new Date().toISOString()
+    updatedAt
   };
 }
 
 // 從遠端 day JSON 寫回本機 (用於拉取時)
 async function applyRemoteDay(remote) {
   const dateStr = remote.date;
+  // 同步「最後寫入時間」為 remote 的版本時戳
+  // 本機現在 = remote 這個版本,沒有比 remote 新
+  const meta = await idbGet('sync_meta', dateStr) || { date: dateStr };
+  meta.lastWrittenAt = remote.updatedAt || new Date(0).toISOString();
+  await idbPut('sync_meta', meta);
   // weight
   if (remote.weight) {
     await idbPut('weight', remote.weight);
@@ -1570,48 +1584,25 @@ async function applyRemoteDay(remote) {
 }
 
 // 合併遠端與本機 (新增合併、修改後寫贏)
+// 合併策略:整天最後寫的版本贏 (whole-day last-write-wins)
+// 理由:
+// 1. 邏輯簡單、不會有刪除復活、修改變新增等怪事
+// 2. 個人使用場景下,兩裝置同時編輯同一天的機率極低
+// 3. 之後若真撞到衝突,可升級為 per-record UUID + tombstone 機制
 function mergeDayPayload(local, remote) {
   if (!remote) return local;
   if (!local) return remote;
 
   const localTs = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
   const remoteTs = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
-  const localNewer = localTs >= remoteTs;
 
-  // weight: 後寫贏
-  const weight = localNewer ? local.weight : remote.weight;
-  // supplements: 後寫贏
-  const supplements = localNewer ? local.supplements : remote.supplements;
-
-  // meals: 用 (mealType + summary + 食材內容) 當識別,合併
-  const mealKey = m => JSON.stringify({
-    t: m.mealType,
-    s: m.summary || '',
-    items: (m.items || []).map(i => `${i.name}|${i.amount}|${i.unit}|${i.cooking}`).sort().join(';')
-  });
-  const seenMeals = new Map();
-  [...(remote.meals || []), ...(local.meals || [])].forEach(m => {
-    const k = mealKey(m);
-    seenMeals.set(k, m);  // 後加的會覆蓋前面 (local 後加 -> local 贏 in conflict)
-  });
-  const meals = [...seenMeals.values()];
-
-  // activities: 用 (type + distance + duration) 當識別,合併
-  const actKey = a => `${a.type}|${a.distance}|${a.duration}`;
-  const seenActs = new Map();
-  [...(remote.activities || []), ...(local.activities || [])].forEach(a => {
-    seenActs.set(actKey(a), a);
-  });
-  const activities = [...seenActs.values()];
-
-  return {
-    date: local.date,
-    weight,
-    supplements,
-    meals,
-    activities,
-    updatedAt: new Date().toISOString()
-  };
+  // local 比較新 (或時間相同) -> local 贏,推 local 上去
+  // remote 比較新 -> remote 贏,把 remote 寫回本機
+  if (localTs >= remoteTs) {
+    return local;
+  } else {
+    return remote;
+  }
 }
 
 // 從 GitHub 取得某天的檔案 (回傳 {payload, sha} 或 null)
