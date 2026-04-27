@@ -495,13 +495,7 @@ button {
 }
 
 /* ============ Meal Card ============ */
-.meal-item {
-  padding: 6px 0 6px 10px;
-  margin-bottom: 10px;
-  cursor: pointer;
-  border-left: 2px solid var(--accent-bg);
-  transition: background 0.15s;
-}
+
 
 .meal-item:last-child {
   margin-bottom: 0;
@@ -523,40 +517,15 @@ button {
   border-left-color: var(--info);
 }
 
-.meal-item-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
 
-.meal-item-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
 
-.meal-item-nums {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
 
-.meal-item-desc {
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-.meal-day-total {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 0.5px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-}
+
+
+
+
+
 
 .meal-day-total .label {
   color: var(--text-secondary);
@@ -634,6 +603,125 @@ button {
 
 .activity-dot.resist {
   background: var(--success);
+}
+
+/* === Meal table (chip style) === */
+.meal-table-header {
+  display: grid;
+  grid-template-columns: 1fr 56px 56px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.meal-table-spacer {
+  /* 占位空欄,讓欄頭只佔右側兩格 */
+}
+
+.nutrient-chip-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  letter-spacing: 0.02em;
+  padding: 2px 0;
+  border-radius: 9px;
+  line-height: 1.4;
+}
+
+.nutrient-chip-label.nutrient-kcal {
+  background: rgba(244, 212, 164, 0.55);
+  color: #8B5A2B;
+}
+
+.nutrient-chip-label.nutrient-protein {
+  background: rgba(122, 139, 92, 0.18);
+  color: #5C6B42;
+}
+
+.meal-item {
+  display: grid;
+  grid-template-columns: 1fr 56px 56px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0 8px 10px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  border-left: 2px solid var(--accent-bg);
+  transition: background 0.15s;
+  border-radius: 0 4px 4px 0;
+}
+
+.meal-item:hover {
+  background: rgba(232, 226, 211, 0.3);
+}
+
+.meal-item-info {
+  min-width: 0;
+}
+
+.meal-item-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.meal-item-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nutrient-chip {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  padding: 3px 0;
+  border-radius: 9px;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.nutrient-chip.nutrient-kcal {
+  background: #F4D4A4;
+  color: #6B3F1F;
+}
+
+.nutrient-chip.nutrient-protein {
+  background: #7A8B5C;
+  color: #FAF8F3;
+}
+
+.nutrient-chip.empty {
+  background: transparent;
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.nutrient-chip.empty::before {
+  content: "—";
+}
+
+.meal-day-total {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 56px 56px;
+  gap: 8px;
+  align-items: center;
+}
+
+.meal-day-total-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding-left: 12px;
 }
 
 .activity-summary {
@@ -1319,10 +1407,9 @@ button {
 <div class="card" id="card-weight">
   <div class="card-header">
     <div class="card-title">Body Composition</div>
-    <button class="edit-btn" data-modal="weight" title="編輯">
+    <button class="edit-btn" data-modal="weight" title="新增/編輯">
       <svg viewBox="0 0 16 16" fill="none">
-        <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-        <path d="M10 3L13 6" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
@@ -1332,10 +1419,9 @@ button {
 <div class="card" id="card-meal">
   <div class="card-header">
     <div class="card-title">Meals</div>
-    <button class="edit-btn" data-modal="meal" title="編輯">
+    <button class="edit-btn" data-modal="meal" title="新增/編輯">
       <svg viewBox="0 0 16 16" fill="none">
-        <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-        <path d="M10 3L13 6" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
@@ -1348,10 +1434,9 @@ button {
       Supplements
       <span class="card-title-meta" id="supp-count">—</span>
     </div>
-    <button class="edit-btn" data-modal="supp" title="編輯">
+    <button class="edit-btn" data-modal="supp" title="新增/編輯">
       <svg viewBox="0 0 16 16" fill="none">
-        <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-        <path d="M10 3L13 6" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
@@ -1361,10 +1446,9 @@ button {
 <div class="card" id="card-activity">
   <div class="card-header">
     <div class="card-title">Activity</div>
-    <button class="edit-btn" data-modal="activity" title="編輯">
+    <button class="edit-btn" data-modal="activity" title="新增/編輯">
       <svg viewBox="0 0 16 16" fill="none">
-        <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-        <path d="M10 3L13 6" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
@@ -2426,31 +2510,41 @@ async function renderMealCard() {
     totalProt += (m.totalProtein || 0);
   });
 
+  // 欄頭
+  const headerHtml = `
+    <div class="meal-table-header">
+      <div class="meal-table-spacer"></div>
+      <div class="nutrient-chip-label nutrient-kcal">kcal</div>
+      <div class="nutrient-chip-label nutrient-protein">蛋白質</div>
+    </div>
+  `;
+
   const itemsHtml = ordered.map(m => {
     const typeClass = m.mealType === 'dinner' ? 'dinner'
       : m.mealType === 'snack' ? 'snack'
       : m.mealType === 'drink' ? 'drink' : '';
     const desc = m.summary || (m.items && m.items.length ? m.items.map(i => i.name).join('、') : '');
-    const nums = [];
-    if (m.totalKcal) nums.push(`${m.totalKcal} kcal`);
-    if (m.totalProtein) nums.push(`${m.totalProtein}g P`);
+    const kcal = m.totalKcal ? Math.round(m.totalKcal) : '';
+    const prot = m.totalProtein ? Math.round(m.totalProtein) : '';
     return `<div class="meal-item ${typeClass}" data-meal-id="${m.id}">
-      <div class="meal-item-head">
+      <div class="meal-item-info">
         <div class="meal-item-label">${m.typeLabel}</div>
-        <div class="meal-item-nums">${nums.join(' · ') || ''}</div>
+        ${desc ? `<div class="meal-item-desc">${esc(desc)}</div>` : ''}
       </div>
-      ${desc ? `<div class="meal-item-desc">${esc(desc)}</div>` : ''}
+      <div class="nutrient-chip nutrient-kcal ${kcal === '' ? 'empty' : ''}">${kcal}</div>
+      <div class="nutrient-chip nutrient-protein ${prot === '' ? 'empty' : ''}">${prot}</div>
     </div>`;
   }).join('');
 
   const totalRow = (totalKcal > 0 || totalProt > 0) ? `
     <div class="meal-day-total">
-      <span class="label">當日合計</span>
-      <span class="value">${totalKcal} kcal · ${totalProt.toFixed(1)}g P</span>
+      <div class="meal-day-total-label">當日合計</div>
+      <div class="nutrient-chip nutrient-kcal">${Math.round(totalKcal)}</div>
+      <div class="nutrient-chip nutrient-protein">${Math.round(totalProt)}</div>
     </div>
   ` : '';
 
-  body.innerHTML = itemsHtml + totalRow;
+  body.innerHTML = headerHtml + itemsHtml + totalRow;
 
   body.querySelectorAll('.meal-item').forEach(el => {
     el.addEventListener('click', () => {
