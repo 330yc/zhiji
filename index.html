@@ -414,10 +414,10 @@ button {
 .bc-card {
   background: var(--bg-tertiary);
   border-radius: var(--radius-sm);
-  padding: 12px 12px 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   text-align: left;
 }
 
@@ -433,7 +433,6 @@ button {
   color: var(--text-primary);
   font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
   line-height: 1.1;
-  margin-top: 2px;
 }
 
 .bc-card-value-empty {
@@ -441,7 +440,6 @@ button {
   font-weight: 400;
   color: var(--text-tertiary);
   line-height: 1.1;
-  margin-top: 2px;
 }
 
 .bc-card-unit {
@@ -452,7 +450,6 @@ button {
 }
 
 .bc-card-change-wrap {
-  margin-top: 4px;
   min-height: 18px;
 }
 
@@ -2901,7 +2898,7 @@ function weightRowSimpleHtml(label, value, unit, series) {
         ? '<svg viewBox="0 0 10 10" fill="currentColor" class="change-tri"><polygon points="1,3 9,3 5,8"/></svg>'
         : '<svg viewBox="0 0 10 10" fill="currentColor" class="change-tri"><polygon points="1,7 9,7 5,2"/></svg>';
       const cls = isDown ? 'down' : 'up';
-      changeHtml = `<span class="bc-card-change ${cls}">${arrow}<span class="change-num">${absDiff.toFixed(1)}</span><span class="change-unit">${unit}</span></span>`;
+      changeHtml = `<span class="bc-card-change ${cls}">${arrow}<span class="change-num">${absDiff.toFixed(1)}</span></span>`;
     }
   }
 
