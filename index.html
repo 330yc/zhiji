@@ -403,40 +403,96 @@ button {
   margin-left: 3px;
 }
 
-/* 簡版 row:只顯示數字 + 跟前一筆變化、沒 sparkline */
-.weight-row-simple {
+/* 三欄水平卡牌(Body Composition 簡版):靠左對齊、各自底色 */
+.weight-rows-simple {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: center;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  align-items: stretch;
 }
 
-.weight-row-change-wrap {
-  text-align: right;
+.bc-card {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  padding: 12px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
 }
 
-.weight-row-change {
+.bc-card-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.bc-card-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.bc-card-value-empty {
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.bc-card-unit {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-left: 3px;
+}
+
+.bc-card-change-wrap {
+  margin-top: 4px;
+  min-height: 18px;
+}
+
+.bc-card-change {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
   font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
   letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.weight-row-change.down { color: var(--success); }
-.weight-row-change.up { color: var(--danger); }
-.weight-row-change.flat {
+.bc-card-change.down { color: var(--success); }
+.bc-card-change.up { color: var(--danger); }
+.bc-card-change.flat {
   color: var(--text-tertiary);
   font-style: italic;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 400;
 }
 
-.weight-row-change .change-tri {
-  width: 10px;
-  height: 10px;
+.bc-card-change .change-tri {
+  width: 9px;
+  height: 9px;
   display: inline-block;
   align-self: center;
+}
+
+.bc-card-change .change-num {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bc-card-change .change-unit {
+  font-size: 10px;
+  font-weight: 400;
+  margin-left: 2px;
+  opacity: 0.85;
 }
 
 .weight-row-spark-wrap {
@@ -2813,10 +2869,11 @@ function getStartDateLabel(endDateStr, firstIdx, totalDays) {
 
 // 簡版 row:只顯示數字 + 跟前一筆的變化 (不含 sparkline)
 // series: 60 天序列、用最後兩個非 null 值算「跟前一筆」差
+// 簡版「卡牌」:label、大數字、跟前一筆的變化(垂直堆疊、靠左對齊)
 function weightRowSimpleHtml(label, value, unit, series) {
   const valueDisplay = (value != null)
-    ? `<div class="weight-row-value">${Number(value).toFixed(1)}<span class="weight-row-unit">${unit}</span></div>`
-    : `<div class="weight-row-value-empty">—</div>`;
+    ? `<div class="bc-card-value">${Number(value).toFixed(1)}<span class="bc-card-unit">${unit}</span></div>`
+    : `<div class="bc-card-value-empty">—</div>`;
 
   // 找最近兩個非 null:倒數第一是「現在」、倒數第二是「前一筆」
   let latestVal = null;
@@ -2837,23 +2894,21 @@ function weightRowSimpleHtml(label, value, unit, series) {
     const diff = latestVal - prevVal;
     const absDiff = Math.abs(diff);
     if (absDiff < 0.05) {
-      changeHtml = '<span class="weight-row-change flat">持平</span>';
+      changeHtml = '<span class="bc-card-change flat">持平</span>';
     } else {
       const isDown = diff < 0;
       const arrow = isDown
         ? '<svg viewBox="0 0 10 10" fill="currentColor" class="change-tri"><polygon points="1,3 9,3 5,8"/></svg>'
         : '<svg viewBox="0 0 10 10" fill="currentColor" class="change-tri"><polygon points="1,7 9,7 5,2"/></svg>';
       const cls = isDown ? 'down' : 'up';
-      changeHtml = `<span class="weight-row-change ${cls}">${arrow}<span class="change-num">${absDiff.toFixed(1)}</span><span class="change-unit">${unit}</span></span>`;
+      changeHtml = `<span class="bc-card-change ${cls}">${arrow}<span class="change-num">${absDiff.toFixed(1)}</span><span class="change-unit">${unit}</span></span>`;
     }
   }
 
-  return `<div class="weight-row weight-row-simple">
-    <div class="weight-row-info">
-      <div class="weight-row-label">${label}</div>
-      ${valueDisplay}
-    </div>
-    <div class="weight-row-change-wrap">${changeHtml}</div>
+  return `<div class="bc-card">
+    <div class="bc-card-label">${label}</div>
+    ${valueDisplay}
+    <div class="bc-card-change-wrap">${changeHtml}</div>
   </div>`;
 }
 
