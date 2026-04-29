@@ -1038,25 +1038,24 @@ button {
 .spark-path-anim {
   stroke-dasharray: 1000;
   stroke-dashoffset: 1000;
-  /* 改用較線性的 easing — 「畫到終點」的視覺感受跟程式時間一致、不會殘留尾巴 */
-  animation: sparkDraw 0.9s cubic-bezier(0.45, 0.1, 0.55, 0.95) forwards;
+  /* 線條畫得更從容 1.15s,讓使用者真的「看著」線在生長 */
+  animation: sparkDraw 1.15s cubic-bezier(0.45, 0.1, 0.55, 0.95) forwards;
 }
 
 .spark-dot-anim {
   opacity: 0;
-  /* delay 0.7s — 線條 ~80% 時就開始淡入、線到圓點時視覺剛好接上 */
-  animation: sparkFadeIn 0.35s ease-out 0.7s forwards;
+  /* delay 0.95s — 線條 ~83% 時開始淡入、視覺浮現剛好對上線條結束 */
+  animation: sparkFadeIn 0.3s ease-out 0.95s forwards;
 }
 
 .spark-avg-anim {
   opacity: 0;
-  /* 均線跟圓點一起浮現 */
-  animation: sparkAvgFade 0.5s ease-out 0.7s forwards;
+  animation: sparkAvgFade 0.45s ease-out 0.95s forwards;
 }
 
 .spark-text-anim {
   opacity: 0;
-  animation: sparkFadeIn 0.4s ease-out 0.85s forwards;
+  animation: sparkFadeIn 0.35s ease-out 1.05s forwards;
 }
 
 .weight-row-spark-change {
@@ -1064,8 +1063,8 @@ button {
 }
 
 .weight-row-spark-change.change-anim {
-  /* 變化量稍晚出現、跟圓點拉開層次 (圓點 0.7 + 約 0.25s = 0.95s) */
-  animation: sparkFadeIn 0.4s ease-out 0.95s forwards;
+  /* 變化量延遲 1.15s — 跟圓點 gap 縮短到 0.2s、更緊密接連 */
+  animation: sparkFadeIn 0.35s ease-out 1.15s forwards;
 }
 
 @keyframes sparkDraw {
