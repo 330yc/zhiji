@@ -1038,22 +1038,25 @@ button {
 .spark-path-anim {
   stroke-dasharray: 1000;
   stroke-dashoffset: 1000;
-  animation: sparkDraw 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  /* ease-out:越畫越慢、結束時有「停下」的感覺 */
+  animation: sparkDraw 1.1s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
 }
 
 .spark-dot-anim {
   opacity: 0;
-  animation: sparkFadeIn 0.4s ease-out 1.4s forwards;
+  /* delay 0.95s — 比線條動畫早一點點開始、視覺上「線到了、點就亮」、不會有空白等待 */
+  animation: sparkFadeIn 0.35s ease-out 0.95s forwards;
 }
 
 .spark-avg-anim {
   opacity: 0;
-  animation: sparkAvgFade 0.5s ease-out 1.4s forwards;
+  /* 均線跟圓點一起浮現 */
+  animation: sparkAvgFade 0.5s ease-out 0.95s forwards;
 }
 
 .spark-text-anim {
   opacity: 0;
-  animation: sparkFadeIn 0.4s ease-out 1.4s forwards;
+  animation: sparkFadeIn 0.4s ease-out 1.1s forwards;
 }
 
 .weight-row-spark-change {
@@ -1061,7 +1064,8 @@ button {
 }
 
 .weight-row-spark-change.change-anim {
-  animation: sparkFadeIn 0.5s ease-out 1.6s forwards;
+  /* 變化量稍晚出現、跟前面的元素拉開層次 */
+  animation: sparkFadeIn 0.4s ease-out 1.2s forwards;
 }
 
 @keyframes sparkDraw {
@@ -2839,16 +2843,22 @@ async function renderWeightCard() {
       tog.querySelector('span:first-child').textContent = isOpen ? 'less' : 'more';
 
       if (isOpen) {
-        // 展開時:用動畫模式重畫 sparkline、變化量也加動畫 class
+        // 展開時:雙層 rAF 確保 detail 已 visible、再觸發動畫
+        // (display:none 的元素 CSS 動畫不會觸發、要等 reflow 完成)
         requestAnimationFrame(() => {
-          // 變化量先加動畫 class (浮現)
-          detail.querySelectorAll('.weight-row-spark-change').forEach(el => {
-            el.classList.add('change-anim');
-          });
-          // sparkline 用 animate=true 重畫
-          detail.querySelectorAll('.weight-spark[data-series]').forEach(el => {
-            const series = JSON.parse(el.dataset.series);
-            renderSparkline(el, series, true);
+          requestAnimationFrame(() => {
+            // 變化量先加動畫 class (浮現)
+            detail.querySelectorAll('.weight-row-spark-change').forEach(el => {
+              el.classList.remove('change-anim');  // 確保乾淨狀態
+              // 強制 reflow 讓動畫重置
+              void el.offsetWidth;
+              el.classList.add('change-anim');
+            });
+            // sparkline 用 animate=true 重畫
+            detail.querySelectorAll('.weight-spark[data-series]').forEach(el => {
+              const series = JSON.parse(el.dataset.series);
+              renderSparkline(el, series, true);
+            });
           });
         });
       } else {
