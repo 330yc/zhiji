@@ -3222,8 +3222,28 @@ function closeModal() {
   document.body.style.overflow = '';
 }
 
-backdrop.addEventListener('click', (e) => {
-  if (e.target === backdrop) closeModal();
+// 修正:只有「點下 + 放開」都在 backdrop 上才關閉
+// 避免在 input 內點下後拖曳出 modal、放開時誤關
+let _backdropMouseDownTarget = null;
+backdrop.addEventListener('mousedown', (e) => {
+  _backdropMouseDownTarget = e.target;
+});
+backdrop.addEventListener('mouseup', (e) => {
+  if (e.target === backdrop && _backdropMouseDownTarget === backdrop) {
+    closeModal();
+  }
+  _backdropMouseDownTarget = null;
+});
+// 觸控裝置一樣的邏輯(mobile Safari)
+let _backdropTouchStartTarget = null;
+backdrop.addEventListener('touchstart', (e) => {
+  _backdropTouchStartTarget = e.target;
+}, { passive: true });
+backdrop.addEventListener('touchend', (e) => {
+  if (e.target === backdrop && _backdropTouchStartTarget === backdrop) {
+    closeModal();
+  }
+  _backdropTouchStartTarget = null;
 });
 
 // ---------- 體重 Modal ----------
