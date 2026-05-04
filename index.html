@@ -2906,75 +2906,25 @@ function clearAllSparkHovers() {
   document.querySelectorAll('.spark-hover-layer').forEach(g => {
     g.innerHTML = '';
   });
-  // 還原所有 weight-row 跟 bc-card 的數字
-  document.querySelectorAll('[data-base-value]').forEach(el => {
-    const baseVal = el.dataset.baseValue;
-    const unit = el.closest('[data-unit]')?.dataset.unit || '';
-    const isCardValue = el.classList.contains('bc-card-value');
-    const unitClass = isCardValue ? 'bc-card-unit' : 'weight-row-unit';
-    el.innerHTML = baseVal + `<span class="${unitClass}">${unit}</span>`;
+  // 還原 sparkline 內的「起點日期」文字 opacity
+  document.querySelectorAll('[data-spark-date-text]').forEach(el => {
+    el.style.opacity = '';
   });
-  // 還原起點日期
-  document.querySelectorAll('[data-base-date]').forEach(el => {
-    el.textContent = el.dataset.baseDate || '';
-  });
+  // (上方卡片的數字本來就沒被切換、不用還原)
 }
 
 function applySparkHover(idx, dateStr) {
   if (idx == null) return;
   _hoverIdx = idx;
 
-  // 收集所有 weight-row(展開區的) 跟 bc-card(主卡的)
-  // 用 data-label 對應到資料 (但我們需要全局 series)
-  // 從各 sparkline 的 data-series 直接讀那個 idx 的值
+  // 不再連動上方數字、不再切換 row 的數值顯示
+  // 只在每個 sparkline 上畫 hover layer (垂直虛線 + 圓點 + 上方數值 + 下方日期)
   document.querySelectorAll('.weight-spark[data-series]').forEach(svgEl => {
-    const series = JSON.parse(svgEl.dataset.series);
-    const v = series[idx];
-    // 找到該 sparkline 所在的 weight-row、更新它的 value 顯示
-    const row = svgEl.closest('.weight-row');
-    if (row) {
-      const valEl = row.querySelector('[data-base-value]');
-      const unit = row.dataset.unit || '';
-      if (valEl) {
-        if (v != null) {
-          valEl.innerHTML = Number(v).toFixed(1) + `<span class="weight-row-unit">${unit}</span>`;
-        } else {
-          valEl.innerHTML = '—';
-        }
-      }
-      // 起點日期文字 → 變成游標日期
-      const dateEl = row.querySelector('[data-base-date]');
-      if (dateEl && dateStr) dateEl.textContent = dateStr;
-    }
-
-    // 在這個 sparkline 上畫 hover layer (垂直虛線 + 圓點)
-    drawHoverLayerOn(svgEl, idx);
-  });
-
-  // 同步更新主卡的 bc-card (它也有 data-base-value, data-label, data-unit)
-  // 但主卡只有 3 張、值要從同名的 weight-row 借
-  document.querySelectorAll('.bc-card[data-label]').forEach(card => {
-    const label = card.dataset.label;
-    // 找對應的 weight-spark (同 label 的那個 row)
-    const matchingRow = document.querySelector(`.weight-row[data-label="${label}"]`);
-    if (!matchingRow) return;
-    const matchingSpark = matchingRow.querySelector('.weight-spark[data-series]');
-    if (!matchingSpark) return;
-    const series = JSON.parse(matchingSpark.dataset.series);
-    const v = series[idx];
-    const valEl = card.querySelector('[data-base-value]');
-    const unit = card.dataset.unit || '';
-    if (valEl) {
-      if (v != null) {
-        valEl.innerHTML = Number(v).toFixed(1) + `<span class="bc-card-unit">${unit}</span>`;
-      } else {
-        valEl.innerHTML = '—';
-      }
-    }
+    drawHoverLayerOn(svgEl, idx, dateStr);
   });
 }
 
-function drawHoverLayerOn(svgEl, idx) {
+function drawHoverLayerOn(svgEl, idx, dateStr) {
   const series = JSON.parse(svgEl.dataset.series || '[]');
   const layer = svgEl.querySelector('.spark-hover-layer');
   if (!layer) return;
@@ -2986,22 +2936,49 @@ function drawHoverLayerOn(svgEl, idx) {
   const yMin = parseFloat(svgEl.dataset.yMin);
   const yRange = parseFloat(svgEl.dataset.yRange);
   const svgH = parseFloat(svgEl.dataset.svgH);
+  const svgW = parseFloat(svgEl.dataset.svgW);
   const padBot = parseFloat(svgEl.dataset.padBot);
+  const padRight = parseFloat(svgEl.dataset.padRight);
 
   if (!stepX || !yRange) { layer.innerHTML = ''; return; }
 
   const x = PAD_LEFT + idx * stepX;
   const v = series[idx];
 
+  // 隱藏原本的「起點日期」文字 (避免跟 hover 日期同時顯示)
+  const baseDateText = svgEl.querySelector('[data-spark-date-text]');
+  if (baseDateText) baseDateText.style.opacity = '0';
+
+  // 計算文字邊界自動偏移:靠左→右偏;靠右→左偏;中間→置中
+  // 用 svgW 判斷
+  let textAnchor = 'middle';
+  if (x < 30) {
+    textAnchor = 'start';
+  } else if (x > svgW - 30) {
+    textAnchor = 'end';
+  }
+
   let html = '';
-  // 垂直虛線 (從上到 sparkline 區域底部、不含日期文字區)
+  // 垂直虛線 (從上到 sparkline 區域底部)
   const lineYBot = PAD_TOP + innerH;
   html += `<line x1="${x.toFixed(1)}" y1="${PAD_TOP}" x2="${x.toFixed(1)}" y2="${lineYBot.toFixed(1)}" stroke="#B5A48A" stroke-width="0.8" stroke-dasharray="2,3" opacity="0.6"/>`;
-  // 圓點 (只在那天有資料時)
+
   if (v != null) {
     const y = PAD_TOP + innerH - ((v - yMin) / yRange) * innerH;
+    // 圓點
     html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--accent)"/>`;
+    // 上方數值
+    const numText = Number(v).toFixed(1);
+    const numY = Math.max(8, y - 7);  // 圓點上方 7px、最小 y=8
+    html += `<text x="${x.toFixed(1)}" y="${numY.toFixed(1)}" text-anchor="${textAnchor}" font-size="10" font-weight="600" fill="#3E2817" font-family="-apple-system,system-ui,sans-serif">${numText}</text>`;
   }
+
+  // 下方日期 (取代起點日期)
+  if (dateStr) {
+    const dateY = svgH - 3;
+    html += `<text x="${x.toFixed(1)}" y="${dateY}" text-anchor="${textAnchor}" font-size="9" fill="#B5A48A" font-family="-apple-system,system-ui,sans-serif" letter-spacing="0.02em">${dateStr}</text>`;
+  }
+
   layer.innerHTML = html;
 }
 
@@ -3268,8 +3245,8 @@ function renderSparkline(svgEl, data, animate) {
 
   const PAD_TOP = 8;
   const PAD_BOT = 8 + DATE_LABEL_HEIGHT;
-  const PAD_LEFT = 4;
-  const PAD_RIGHT = 8;
+  const PAD_LEFT = 2;
+  const PAD_RIGHT = 6;
   const innerW = W - PAD_LEFT - PAD_RIGHT;
   const innerH = H - PAD_TOP - PAD_BOT;
 
