@@ -368,6 +368,8 @@ button {
   grid-template-columns: minmax(0, 110px) 1fr;
   gap: 12px;
   align-items: center;
+  /* 固定高度避免 hover 切換時跳動 */
+  min-height: 80px;
 }
 
 .weight-row-neutral { border-left-color: #C9A86A; }
@@ -426,6 +428,7 @@ button {
   flex-direction: column;
   gap: 6px;
   text-align: left;
+  min-height: 86px;
 }
 
 /* 三色分組 */
@@ -515,7 +518,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  min-height: 14px;
+  height: 18px;
 }
 
 .weight-row-spark-change {
@@ -2884,6 +2887,16 @@ async function renderWeightCard() {
   }
 }
 
+// 儲存每個 spark-top 的「預設變化量 HTML」、給 hover 結束時還原用
+const _sparkTopBaseHtml = new WeakMap();
+function snapshotSparkTopBase() {
+  document.querySelectorAll('.weight-row-spark-top').forEach(top => {
+    if (!_sparkTopBaseHtml.has(top)) {
+      _sparkTopBaseHtml.set(top, top.innerHTML);
+    }
+  });
+}
+
 // === Sparkline hover/touch 互動:全局時間游標 ===
 // 在任一 sparkline 上 hover/touch 時、所有 sparkline 同步顯示「那一天」
 let _hoverIdx = null;
@@ -2896,15 +2909,10 @@ function clearAllSparkHovers() {
   document.querySelectorAll('.spark-hover-layer').forEach(g => {
     g.innerHTML = '';
   });
-  // 還原右上變化量區的預設值
-  document.querySelectorAll('.weight-row-spark-top[data-base-html]').forEach(top => {
-    const baseHtml = top.dataset.baseHtml;
-    if (baseHtml != null) {
-      // dataset 存的是 HTML-escaped、還原時要 unescape
-      const txt = document.createElement('textarea');
-      txt.innerHTML = baseHtml;
-      top.innerHTML = txt.value;
-    }
+  // 從 WeakMap 還原右上變化量區的預設 HTML
+  document.querySelectorAll('.weight-row-spark-top').forEach(top => {
+    const base = _sparkTopBaseHtml.get(top);
+    if (base != null) top.innerHTML = base;
   });
 }
 
@@ -3043,6 +3051,8 @@ function setupSparkHover() {
       if (_hoverTarget) clearAllSparkHovers();
       return;
     }
+    // 第一次 hover 之前、先 snapshot 預設變化量 HTML
+    if (!_hoverTarget) snapshotSparkTopBase();
     _hoverTarget = target;
     const idx = calcSparkHoverIdx(target, e.clientX);
     if (idx == null) return;
@@ -3061,6 +3071,7 @@ function setupSparkHover() {
     const target = e.target.closest('.weight-spark[data-series]');
     if (!target) return;
     touchActive = true;
+    if (!_hoverTarget) snapshotSparkTopBase();
     _hoverTarget = target;
     const t = e.touches[0];
     const idx = calcSparkHoverIdx(target, t.clientX);
@@ -3240,7 +3251,7 @@ function weightRowHtml(label, value, unit, series, totalDays = 60) {
       ${valueDisplay}
     </div>
     <div class="weight-row-spark-wrap">
-      <div class="weight-row-spark-top" data-base-html="${esc(changeHtml)}">${changeHtml}</div>
+      <div class="weight-row-spark-top">${changeHtml}</div>
       <svg class="weight-spark" data-series='${JSON.stringify(series)}' data-unit="${unit}"></svg>
     </div>
   </div>`;
