@@ -518,7 +518,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  height: 18px;
+  min-height: 18px;
 }
 
 .weight-row-spark-change {
@@ -2923,15 +2923,21 @@ function buildHoverChangeHtml(series, idx, unit) {
   for (let i = series.length - 1; i >= 0; i--) {
     if (series[i] != null) { latestVal = series[i]; break; }
   }
-  const hoverVal = series[idx];
-  if (latestVal == null || hoverVal == null) return '';
+  // hover 那天若是 null、往前找最近有效值 (避免空白)
+  let hoverVal = series[idx];
+  if (hoverVal == null) {
+    for (let i = idx - 1; i >= 0; i--) {
+      if (series[i] != null) { hoverVal = series[i]; break; }
+    }
+  }
+  if (latestVal == null || hoverVal == null) return null;  // 真的沒資料、回 null 讓呼叫端決定
 
-  const diff = latestVal - hoverVal;  // 從那天到現在的差
+  const diff = latestVal - hoverVal;
   const absDiff = Math.abs(diff);
   if (absDiff < 0.05) {
     return '<span class="weight-row-spark-change flat">持平</span>';
   }
-  const isDown = diff < 0;  // 現在比那天少 → 下降
+  const isDown = diff < 0;
   const arrow = isDown
     ? '<svg viewBox="0 0 10 10" fill="currentColor" class="change-tri"><polygon points="1,3 9,3 5,8"/></svg>'
     : '<svg viewBox="0 0 10 10" fill="currentColor" class="change-tri"><polygon points="1,7 9,7 5,2"/></svg>';
@@ -2954,7 +2960,8 @@ function applySparkHover(idx, dateStr) {
     const series = JSON.parse(svgEl.dataset.series || '[]');
     const unit = svgEl.dataset.unit || '';
     const newHtml = buildHoverChangeHtml(series, idx, unit);
-    if (newHtml) top.innerHTML = newHtml;
+    if (newHtml != null) top.innerHTML = newHtml;
+    // 如果 buildHoverChangeHtml 返回 null (該指標完全沒資料)、保持 top 不變、繼續顯示預設變化量
   });
 }
 
