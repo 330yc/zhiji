@@ -368,8 +368,8 @@ button {
   grid-template-columns: minmax(0, 110px) 1fr;
   gap: 12px;
   align-items: center;
-  /* 固定高度避免 hover 切換時跳動 */
-  min-height: 80px;
+  /* 固定高度避免 hover 切換時跳動 — 預估 padding 24 + 內容 64 ≈ 88、設 90 多點 buffer */
+  min-height: 90px;
 }
 
 .weight-row-neutral { border-left-color: #C9A86A; }
@@ -2960,6 +2960,11 @@ function applySparkHover(idx, dateStr) {
     const series = JSON.parse(svgEl.dataset.series || '[]');
     const unit = svgEl.dataset.unit || '';
     const newHtml = buildHoverChangeHtml(series, idx, unit);
+    // [DEBUG] 暫時開、定位 hover 變化量問題
+    if (window._debugHover) {
+      const label = row.dataset.label || '?';
+      console.log(`[hover] ${label} idx=${idx} hoverVal=${series[idx]} newHtml=${newHtml ? newHtml.substring(0,80) : 'NULL'}`);
+    }
     if (newHtml != null) top.innerHTML = newHtml;
     // 如果 buildHoverChangeHtml 返回 null (該指標完全沒資料)、保持 top 不變、繼續顯示預設變化量
   });
