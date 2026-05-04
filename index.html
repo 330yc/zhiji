@@ -2906,10 +2906,6 @@ function clearAllSparkHovers() {
   document.querySelectorAll('.spark-hover-layer').forEach(g => {
     g.innerHTML = '';
   });
-  // 還原 sparkline 內的「起點日期」文字 opacity
-  document.querySelectorAll('[data-spark-date-text]').forEach(el => {
-    el.style.opacity = '';
-  });
   // (上方卡片的數字本來就沒被切換、不用還原)
 }
 
@@ -2944,10 +2940,6 @@ function drawHoverLayerOn(svgEl, idx, dateStr) {
 
   const x = PAD_LEFT + idx * stepX;
   const v = series[idx];
-
-  // 隱藏原本的「起點日期」文字 (避免跟 hover 日期同時顯示)
-  const baseDateText = svgEl.querySelector('[data-spark-date-text]');
-  if (baseDateText) baseDateText.style.opacity = '0';
 
   // 計算文字邊界自動偏移:靠左→右偏;靠右→左偏;中間→置中
   // 用 svgW 判斷
@@ -3232,7 +3224,7 @@ function renderSparkline(svgEl, data, animate) {
   const H = Math.max(20, Math.round(rect.height)) || 60;
   const startDateLabel = svgEl.dataset.startdate || '';
   const HAS_DATE_LABEL = !!startDateLabel;
-  const DATE_LABEL_HEIGHT = HAS_DATE_LABEL ? 14 : 0;
+  const DATE_LABEL_HEIGHT = HAS_DATE_LABEL ? 10 : 0;
 
   svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svgEl.removeAttribute('preserveAspectRatio');
@@ -3243,9 +3235,9 @@ function renderSparkline(svgEl, data, animate) {
     return;
   }
 
-  const PAD_TOP = 8;
-  const PAD_BOT = 8 + DATE_LABEL_HEIGHT;
-  const PAD_LEFT = 2;
+  const PAD_TOP = 6;
+  const PAD_BOT = 6 + DATE_LABEL_HEIGHT;
+  const PAD_LEFT = 1;
   const PAD_RIGHT = 6;
   const innerW = W - PAD_LEFT - PAD_RIGHT;
   const innerH = H - PAD_TOP - PAD_BOT;
@@ -3329,19 +3321,7 @@ function renderSparkline(svgEl, data, animate) {
     }
   }
 
-  // 起點日期文字 (預設值,hover 時會被 hover handler 覆蓋)
-  if (HAS_DATE_LABEL) {
-    let firstX = PAD_LEFT;
-    for (let i = 0; i < data.length; i++) {
-      if (data[i] != null) {
-        firstX = PAD_LEFT + i * stepX;
-        break;
-      }
-    }
-    const textY = H - 3;
-    const cls = animate ? ' class="spark-text-anim"' : '';
-    svgContent += `<text${cls} x="${firstX.toFixed(1)}" y="${textY}" text-anchor="middle" font-size="9" fill="#B5A48A" font-family="-apple-system,system-ui,sans-serif" letter-spacing="0.02em" data-spark-date-text="1">${startDateLabel}</text>`;
-  }
+  // (起點日期文字已移除、hover 時會在圓點下方顯示游標日期)
 
   // hover 圖層占位 (由 JS 動態填入)
   svgContent += `<g class="spark-hover-layer"></g>`;
