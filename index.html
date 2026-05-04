@@ -518,16 +518,6 @@ button {
   min-height: 14px;
 }
 
-.weight-row-spark-start {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  font-family: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
-  letter-spacing: 0.02em;
-  text-align: left;
-  margin-top: -2px;
-  padding-left: 2px;
-}
-
 .weight-row-spark-change {
   display: inline-flex;
   align-items: baseline;
@@ -2961,7 +2951,7 @@ function drawHoverLayerOn(svgEl, idx, dateStr) {
     html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--accent)"/>`;
     // 上方數值
     const numText = Number(v).toFixed(1);
-    const numY = Math.max(8, y - 7);  // 圓點上方 7px、最小 y=8
+    const numY = Math.max(11, y - 11);  // 圓點上方 11px、最小 y=11
     html += `<text x="${x.toFixed(1)}" y="${numY.toFixed(1)}" text-anchor="${textAnchor}" font-size="10" font-weight="600" fill="#3E2817" font-family="-apple-system,system-ui,sans-serif">${numText}</text>`;
   }
 
@@ -3212,7 +3202,6 @@ function weightRowHtml(label, value, unit, series, totalDays = 60) {
     <div class="weight-row-spark-wrap">
       <div class="weight-row-spark-top">${changeHtml}</div>
       <svg class="weight-spark" data-series='${JSON.stringify(series)}'></svg>
-      <div class="weight-row-spark-start" data-base-date="${esc(startDateLabel)}">${esc(startDateLabel)}</div>
     </div>
   </div>`;
 }
@@ -3237,7 +3226,7 @@ function renderSparkline(svgEl, data, animate) {
 
   const PAD_TOP = 6;
   const PAD_BOT = 6 + DATE_LABEL_HEIGHT;
-  const PAD_LEFT = 1;
+  const PAD_LEFT = 3;
   const PAD_RIGHT = 6;
   const innerW = W - PAD_LEFT - PAD_RIGHT;
   const innerH = H - PAD_TOP - PAD_BOT;
