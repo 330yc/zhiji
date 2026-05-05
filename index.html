@@ -1076,11 +1076,7 @@ button {
   animation: sparkFadeIn 1.15s ease-in forwards;
 }
 
-.weight-row-spark-change {
-  opacity: 0;
-}
-
-/* 變化量:緊接線條結束後 0.1s 開始浮現、0.4s 完成 */
+/* 變化量展開動畫:由 JS 設 opacity:0 後加 change-anim、讓動畫淡入 */
 .weight-row-spark-change.change-anim {
   animation: sparkFadeIn 0.4s ease-out 1.1s forwards;
 }
@@ -2870,11 +2866,12 @@ async function renderWeightCard() {
         // (display:none 的元素 CSS 動畫不會觸發、要等 reflow 完成)
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            // 變化量先加動畫 class (浮現)
+            // 變化量先設 opacity:0 (讓動畫從透明淡入)、加 change-anim 觸發動畫
             detail.querySelectorAll('.weight-row-spark-change').forEach(el => {
-              el.classList.remove('change-anim');  // 確保乾淨狀態
-              // 強制 reflow 讓動畫重置
+              el.classList.remove('change-anim');
+              el.style.opacity = '0';
               void el.offsetWidth;
+              el.style.opacity = '';
               el.classList.add('change-anim');
             });
             // sparkline 用 animate=true 重畫
@@ -2885,9 +2882,10 @@ async function renderWeightCard() {
           });
         });
       } else {
-        // 收合時:清除動畫 class,下次展開才能重播
+        // 收合時:清除動畫 class、清除 inline opacity
         detail.querySelectorAll('.weight-row-spark-change').forEach(el => {
           el.classList.remove('change-anim');
+          el.style.opacity = '';
         });
       }
     });
@@ -2967,11 +2965,6 @@ function applySparkHover(idx, dateStr) {
     const series = JSON.parse(svgEl.dataset.series || '[]');
     const unit = svgEl.dataset.unit || '';
     const newHtml = buildHoverChangeHtml(series, idx, unit);
-    // [DEBUG] 暫時開、定位 hover 變化量問題
-    if (window._debugHover) {
-      const label = row.dataset.label || '?';
-      console.log(`[hover] ${label} idx=${idx} hoverVal=${series[idx]} newHtml=${newHtml ? newHtml.substring(0,80) : 'NULL'}`);
-    }
     if (newHtml != null) top.innerHTML = newHtml;
     // 如果 buildHoverChangeHtml 返回 null (該指標完全沒資料)、保持 top 不變、繼續顯示預設變化量
   });
