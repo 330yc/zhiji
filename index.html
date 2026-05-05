@@ -1095,6 +1095,33 @@ button {
   to { opacity: 0.55; }
 }
 
+/* === Topbar (sticky 頂端、含 logo + 日期) === */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(250, 248, 243, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding-top: 8px;
+  padding-bottom: 4px;
+  margin-bottom: 16px;
+  /* 微妙的下緣陰影、強化「浮在內容上」的感覺 */
+  box-shadow: 0 1px 0 rgba(62, 40, 23, 0.04);
+}
+
+.topbar .header {
+  padding-top: 8px !important;
+  padding-bottom: 4px !important;
+  margin-bottom: 4px !important;
+}
+
+.topbar .date-nav {
+  padding-top: 0 !important;
+  padding-bottom: 8px !important;
+  margin-bottom: 0 !important;
+}
+
 /* === 飲料快選 chip === */
 .drink-quick-row {
   display: flex;
@@ -1737,6 +1764,7 @@ button {
 </head>
 <body>
 
+<div class="topbar">
 <div class="header">
   <div class="logo">
     <div class="logo-circle-1"></div>
@@ -1755,21 +1783,7 @@ button {
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
     </button>
-    <button class="header-btn" id="btn-menu" title="選單">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-        <circle cx="8" cy="3" r="1"></circle>
-        <circle cx="8" cy="8" r="1"></circle>
-        <circle cx="8" cy="13" r="1"></circle>
-      </svg>
-    </button>
   </div>
-</div>
-
-<div id="menu" class="menu">
-  <button id="menu-import">匯入歷史體重</button>
-  <button id="menu-export">匯出資料</button>
-  <hr>
-  <button id="menu-about">關於知己</button>
 </div>
 
 <div class="date-nav">
@@ -1784,6 +1798,7 @@ button {
   <button class="date-nav-btn" id="btn-next-day" aria-label="後一天">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13"/></svg>
   </button>
+</div>
 </div>
 
 <div id="calendar-wrap" class="hidden"></div>
@@ -4730,6 +4745,15 @@ async function openSettingsModal() {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13"/></svg>
         </span>
       </div>
+      <div class="settings-row settings-row-action" id="action-about">
+        <div class="settings-row-info">
+          <div class="settings-row-label">關於知己</div>
+          <div class="settings-row-desc">這個 app 的相關資訊</div>
+        </div>
+        <span class="settings-row-arrow">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13"/></svg>
+        </span>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -4763,6 +4787,27 @@ async function openSettingsModal() {
   document.getElementById('action-github-config').addEventListener('click', () => {
     closeModal();
     openGithubConfigModal();
+  });
+
+  document.getElementById('action-about').addEventListener('click', () => {
+    closeModal();
+    openModal(`
+      <div class="modal-header">
+        <div class="modal-title">關於知己</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div style="font-size: 14px; line-height: 1.8; color: var(--text-primary);">
+        <p style="margin-top:0;"><strong>知己 · Know Yourself</strong></p>
+        <p>一個幫你紀錄日常身體、飲食、活動的個人日誌。</p>
+        <p>資料完全保存在這個瀏覽器中,不會上傳到任何伺服器(除非你設定了 GitHub 同步)。</p>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 20px;">
+          v1.0 · 2026
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">關閉</button>
+      </div>
+    `);
   });
   document.getElementById('action-resync').addEventListener('click', () => {
     closeModal();
@@ -5072,58 +5117,6 @@ function bindEvents() {
   });
 
   // Menu
-  const menu = document.getElementById('menu');
-  document.getElementById('btn-menu').addEventListener('click', (e) => {
-    e.stopPropagation();
-    menu.classList.toggle('open');
-  });
-  document.addEventListener('click', (e) => {
-    if (!menu.contains(e.target)) menu.classList.remove('open');
-  });
-  // 齒輪 -> 設定頁
-  document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
-
-  // JSON 還原檔案輸入
-  document.getElementById('json-input').addEventListener('change', (e) => {
-    const f = e.target.files[0];
-    if (f) handleImportJSON(f);
-    e.target.value = '';
-  });
-
-  document.getElementById('menu-import').addEventListener('click', () => {
-    menu.classList.remove('open');
-    document.getElementById('file-input').click();
-  });
-  document.getElementById('file-input').addEventListener('change', (e) => {
-    const f = e.target.files[0];
-    if (f) handleImport(f);
-    e.target.value = '';
-  });
-  document.getElementById('menu-export').addEventListener('click', () => {
-    menu.classList.remove('open');
-    handleExport();
-  });
-  document.getElementById('menu-about').addEventListener('click', () => {
-    menu.classList.remove('open');
-    openModal(`
-      <div class="modal-header">
-        <div class="modal-title">關於知己</div>
-        <button class="modal-close" onclick="closeModal()">×</button>
-      </div>
-      <div style="font-size: 14px; line-height: 1.8; color: var(--text-primary);">
-        <p style="margin-top:0;"><strong>知己 · Know Yourself</strong></p>
-        <p>一個幫你紀錄日常身體、飲食、活動的個人日誌。</p>
-        <p>資料完全保存在這個瀏覽器中,不會上傳到任何伺服器。</p>
-        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 20px;">
-          v1.0 · 2026
-        </p>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="closeModal()">關閉</button>
-      </div>
-    `);
-  });
-
   // Touch swipe for mobile
   let touchStartX = null;
   let touchStartY = null;
