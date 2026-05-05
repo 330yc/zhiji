@@ -2758,10 +2758,35 @@ function renderDateNav() {
 function calcDerived(w) {
   if (!w || w.weight == null) return null;
   const r = { ...w };
-  if (w.fatPct != null) r.fatMass = +(w.weight * w.fatPct / 100).toFixed(2);
-  if (w.musclePct != null) r.muscleMass = +(w.weight * w.musclePct / 100).toFixed(2);
-  if (w.proteinPct != null) r.proteinMass = +(w.weight * w.proteinPct / 100).toFixed(2);
-  if (r.fatMass != null) r.nonFat = +(w.weight - r.fatMass).toFixed(2);
+  // === Phase 1: 確定每個 kg 欄位的值(直接 > 從舊 % 反推) ===
+  // fatMass:有直接欄位用直接、否則從舊 fatPct 反推
+  if (r.fatMass == null && w.fatPct != null) {
+    r.fatMass = +(w.weight * w.fatPct / 100).toFixed(2);
+  }
+  // muscleMass:同邏輯
+  if (r.muscleMass == null && w.musclePct != null) {
+    r.muscleMass = +(w.weight * w.musclePct / 100).toFixed(2);
+  }
+  // proteinMass:同邏輯
+  if (r.proteinMass == null && w.proteinPct != null) {
+    r.proteinMass = +(w.weight * w.proteinPct / 100).toFixed(2);
+  }
+  // leanMass:沒直接、嘗試 weight - fatMass
+  if (r.leanMass == null && r.fatMass != null) {
+    r.leanMass = +(w.weight - r.fatMass).toFixed(2);
+  }
+
+  // === Phase 2: 從各 kg 算對應 % (永遠重算、覆蓋舊值) ===
+  if (r.fatMass != null) r.fatPct = +(r.fatMass / w.weight * 100).toFixed(2);
+  if (r.muscleMass != null) r.musclePct = +(r.muscleMass / w.weight * 100).toFixed(2);
+  if (r.proteinMass != null) r.proteinPct = +(r.proteinMass / w.weight * 100).toFixed(2);
+  if (r.skeletalMuscle != null) r.skeletalPct = +(r.skeletalMuscle / w.weight * 100).toFixed(2);
+  if (r.waterMass != null) r.waterPct = +(r.waterMass / w.weight * 100).toFixed(2);
+  if (r.boneMass != null) r.bonePct = +(r.boneMass / w.weight * 100).toFixed(2);
+
+  // 舊欄位別名保留 (避免後面程式碼壞掉)
+  if (r.leanMass != null) r.nonFat = r.leanMass;
+
   return r;
 }
 
@@ -2793,43 +2818,49 @@ async function renderWeightCard() {
   // 取得過去 30 天的歷史資料 (以 currentDate 為終點)
   const history = await getWeightHistory(currentDate, 60);
 
-  // 計算骨骼肌率序列 (用骨骼肌量 / 體重)
-  const seriesWeight = history.map(d => d ? d.weight : null);
-  const seriesFatPct = history.map(d => d ? d.fatPct : null);
-  const seriesSkeletalMusclePct = history.map(d =>
-    (d && d.weight && d.skeletalMuscle != null) ? +(d.skeletalMuscle / d.weight * 100).toFixed(2) : null
-  );
-  const seriesMusclePct = history.map(d => d ? d.musclePct : null);
-  const seriesProteinPct = history.map(d => d ? d.proteinPct : null);
-  const seriesSkeletalMuscle = history.map(d => d ? d.skeletalMuscle : null);
-  const seriesFatMass = history.map(d => (d && d.weight && d.fatPct != null) ? +(d.weight * d.fatPct / 100).toFixed(2) : null);
-  const seriesNonFat = history.map(d => (d && d.weight && d.fatPct != null) ? +(d.weight - d.weight * d.fatPct / 100).toFixed(2) : null);
-  const seriesMuscleMass = history.map(d => (d && d.weight && d.musclePct != null) ? +(d.weight * d.musclePct / 100).toFixed(2) : null);
-  const seriesProteinMass = history.map(d => (d && d.weight && d.proteinPct != null) ? +(d.weight * d.proteinPct / 100).toFixed(2) : null);
+  // === 14 項 series 計算 ===
+  // 各 series 都用 calcDerived 處理過的歷史資料
+  // history 已經是 raw、要先 calc 一次拿到所有衍生欄位
+  const histD = history.map(d => d ? calcDerived(d) : null);
 
-  // 計算骨骼肌率(當日)
-  const skeletalMusclePct = (w.weight && w.skeletalMuscle != null)
-    ? +(w.skeletalMuscle / w.weight * 100).toFixed(2) : null;
+  const seriesWeight       = histD.map(d => d ? d.weight : null);
+  const seriesFatMass      = histD.map(d => d ? d.fatMass : null);
+  const seriesFatPct       = histD.map(d => d ? d.fatPct : null);
+  const seriesSkeletalMass = histD.map(d => d ? d.skeletalMuscle : null);
+  const seriesSkeletalPct  = histD.map(d => d ? d.skeletalPct : null);
+  const seriesMuscleMass   = histD.map(d => d ? d.muscleMass : null);
+  const seriesMusclePct    = histD.map(d => d ? d.musclePct : null);
+  const seriesProteinMass  = histD.map(d => d ? d.proteinMass : null);
+  const seriesProteinPct   = histD.map(d => d ? d.proteinPct : null);
+  const seriesWaterMass    = histD.map(d => d ? d.waterMass : null);
+  const seriesWaterPct     = histD.map(d => d ? d.waterPct : null);
+  const seriesBoneMass     = histD.map(d => d ? d.boneMass : null);
+  const seriesBonePct      = histD.map(d => d ? d.bonePct : null);
+  const seriesLeanMass     = histD.map(d => d ? d.leanMass : null);
 
   body.innerHTML = `
     <div class="weight-rows weight-rows-simple">
       ${weightRowSimpleHtml('體重', w.weight, 'kg', seriesWeight)}
       ${weightRowSimpleHtml('體脂率', w.fatPct, '%', seriesFatPct)}
-      ${weightRowSimpleHtml('骨骼肌率', skeletalMusclePct, '%', seriesSkeletalMusclePct)}
+      ${weightRowSimpleHtml('骨骼肌量', w.skeletalMuscle, 'kg', seriesSkeletalMass)}
     </div>
     <div class="weight-more" id="weight-more-toggle"><span>more</span><span class="weight-more-icon"><svg viewBox="0 0 10 10" fill="currentColor"><polygon points="1,3 9,3 5,8"/></svg></span></div>
     <div class="weight-detail" id="weight-detail">
       <div class="weight-rows">
         ${weightRowHtml('體重', w.weight, 'kg', seriesWeight)}
         ${weightRowHtml('體脂率', w.fatPct, '%', seriesFatPct)}
-        ${weightRowHtml('骨骼肌率', skeletalMusclePct, '%', seriesSkeletalMusclePct)}
-        ${weightRowHtml('肌肉率', w.musclePct, '%', seriesMusclePct)}
-        ${weightRowHtml('蛋白質率', w.proteinPct, '%', seriesProteinPct)}
-        ${weightRowHtml('骨骼肌量', w.skeletalMuscle, 'kg', seriesSkeletalMuscle)}
-        ${weightRowHtml('脂肪量', w.fatMass, 'kg', seriesFatMass)}
-        ${weightRowHtml('非脂肪量', w.nonFat, 'kg', seriesNonFat)}
+        ${weightRowHtml('骨骼肌量', w.skeletalMuscle, 'kg', seriesSkeletalMass)}
+        ${weightRowHtml('骨骼肌率', w.skeletalPct, '%', seriesSkeletalPct)}
         ${weightRowHtml('肌肉量', w.muscleMass, 'kg', seriesMuscleMass)}
-        ${weightRowHtml('蛋白質量', w.proteinMass, 'kg', seriesProteinMass)}
+        ${weightRowHtml('肌肉率', w.musclePct, '%', seriesMusclePct)}
+        ${weightRowHtml('蛋白質', w.proteinMass, 'kg', seriesProteinMass)}
+        ${weightRowHtml('蛋白質率', w.proteinPct, '%', seriesProteinPct)}
+        ${weightRowHtml('身體水分', w.waterMass, 'kg', seriesWaterMass)}
+        ${weightRowHtml('水分率', w.waterPct, '%', seriesWaterPct)}
+        ${weightRowHtml('骨鹽量', w.boneMass, 'kg', seriesBoneMass)}
+        ${weightRowHtml('骨鹽率', w.bonePct, '%', seriesBonePct)}
+        ${weightRowHtml('去脂體重', w.leanMass, 'kg', seriesLeanMass)}
+        ${weightRowHtml('脂肪量', w.fatMass, 'kg', seriesFatMass)}
       </div>
     </div>
   `;
@@ -3118,6 +3149,15 @@ function setupSparkHover() {
 // 啟動時呼叫
 setupSparkHover();
 
+// 防止 number input 被滾輪意外加減 — focus 在 number input 上時、滾輪不會改值
+// 用 capture 階段攔下、preventDefault 阻止瀏覽器原生行為
+document.addEventListener('wheel', (e) => {
+  const target = e.target;
+  if (target && target.tagName === 'INPUT' && target.type === 'number' && target === document.activeElement) {
+    target.blur();  // 失去 focus、滾輪不會再改值;同時讓滾動繼續傳播給頁面
+  }
+}, { passive: true });
+
 // 取得從 endDateStr 往前 days 天的歷史資料
 async function getWeightHistory(endDateStr, days) {
   const endDate = parseDate(endDateStr);
@@ -3228,11 +3268,11 @@ function weightRowSimpleHtml(label, value, unit, series) {
 //   muscle = 好(肌肉/骨骼肌類)
 //   fat = 壞(脂肪類)
 function getIndicatorGroup(label) {
-  const NEUTRAL = ['體重', '蛋白質量', '蛋白質率'];
+  const NEUTRAL = ['體重', '蛋白質', '蛋白質率', '身體水分', '水分率', '骨鹽量', '骨鹽率', '去脂體重'];
   const FAT = ['體脂率', '脂肪量'];
   if (NEUTRAL.includes(label)) return 'neutral';
   if (FAT.includes(label)) return 'fat';
-  return 'muscle';
+  return 'muscle';  // 骨骼肌量、骨骼肌率、肌肉量、肌肉率
 }
 
 function weightRowHtml(label, value, unit, series, totalDays = 60) {
@@ -3590,27 +3630,35 @@ async function openWeightModal() {
     </div>
     <div class="field">
       <label class="field-label">體重 (kg)</label>
-      <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-weight" value="${f('weight')}" placeholder="例: 80.6">
+      <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-weight" value="${f('weight')}" placeholder="例: 78.5">
     </div>
-    <div class="field-row">
-      <div class="field">
-        <label class="field-label">體脂率 (%)</label>
-        <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-fatPct" value="${f('fatPct')}">
-      </div>
-      <div class="field">
-        <label class="field-label">肌肉率 (%)</label>
-        <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-musclePct" value="${f('musclePct')}">
-      </div>
+    <div class="field">
+      <label class="field-label">身體水分 (kg)</label>
+      <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-waterMass" value="${f('waterMass')}" placeholder="例: 46.9">
     </div>
-    <div class="field-row">
-      <div class="field">
-        <label class="field-label">蛋白質率 (%)</label>
-        <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-proteinPct" value="${f('proteinPct')}">
-      </div>
-      <div class="field">
-        <label class="field-label">骨骼肌量 (kg)</label>
-        <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-skeletalMuscle" value="${f('skeletalMuscle')}">
-      </div>
+    <div class="field">
+      <label class="field-label">脂肪量 (kg)</label>
+      <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-fatMass" value="${f('fatMass')}" placeholder="例: 19.9">
+    </div>
+    <div class="field">
+      <label class="field-label">骨鹽量 (kg)</label>
+      <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-boneMass" value="${f('boneMass')}" placeholder="例: 3.2">
+    </div>
+    <div class="field">
+      <label class="field-label">蛋白質 (kg)</label>
+      <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-proteinMass" value="${f('proteinMass')}" placeholder="例: 7.8">
+    </div>
+    <div class="field">
+      <label class="field-label">肌肉量 (kg)</label>
+      <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-muscleMass" value="${f('muscleMass')}" placeholder="例: 55.4">
+    </div>
+    <div class="field">
+      <label class="field-label">骨骼肌量 (kg)</label>
+      <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-skeletalMuscle" value="${f('skeletalMuscle')}" placeholder="例: 34.3">
+    </div>
+    <div class="field">
+      <label class="field-label">去脂體重 (kg)</label>
+      <input class="field-input" type="number" step="0.1" inputmode="decimal" id="f-leanMass" value="${f('leanMass')}" placeholder="例: 58.6">
     </div>
     <div class="modal-actions">
       ${existing.weight != null ? '<button class="btn btn-danger" onclick="deleteWeight()">Delete</button>' : ''}
@@ -3626,13 +3674,22 @@ async function openWeightModal() {
 window.saveWeight = async function() {
   const weight = toNum(document.getElementById('f-weight').value);
   if (weight == null) { toast('請至少輸入體重'); return; }
+  // 保留舊 % 欄位:讀已存的、避免歷史資料消失
+  const existing = await idbGet('weight', currentDate) || {};
   const data = {
     date: currentDate,
     weight,
-    fatPct: toNum(document.getElementById('f-fatPct').value),
-    musclePct: toNum(document.getElementById('f-musclePct').value),
-    proteinPct: toNum(document.getElementById('f-proteinPct').value),
-    skeletalMuscle: toNum(document.getElementById('f-skeletalMuscle').value)
+    waterMass: toNum(document.getElementById('f-waterMass').value),
+    fatMass: toNum(document.getElementById('f-fatMass').value),
+    boneMass: toNum(document.getElementById('f-boneMass').value),
+    proteinMass: toNum(document.getElementById('f-proteinMass').value),
+    muscleMass: toNum(document.getElementById('f-muscleMass').value),
+    skeletalMuscle: toNum(document.getElementById('f-skeletalMuscle').value),
+    leanMass: toNum(document.getElementById('f-leanMass').value),
+    // 保留舊 % 欄位 — 給歷史資料用、新資料這些欄位是 null
+    fatPct: existing.fatPct != null ? existing.fatPct : null,
+    musclePct: existing.musclePct != null ? existing.musclePct : null,
+    proteinPct: existing.proteinPct != null ? existing.proteinPct : null
   };
   await idbPut('weight', data);
   closeModal();
