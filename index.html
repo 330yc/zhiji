@@ -1095,6 +1095,38 @@ button {
   to { opacity: 0.55; }
 }
 
+/* === 日曆 popup (fixed 定位、視口中央) === */
+#calendar-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 110;  /* 高於 modal、確保永遠在最上面 */
+  background: rgba(62, 40, 23, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  /* 過渡淡入 */
+  transition: opacity 0.2s ease-out;
+}
+
+#calendar-wrap.hidden {
+  display: none;
+  /* 蓋掉 .hidden 預設那組 max-height/opacity (它們對 fixed 沒意義) */
+  max-height: none;
+  padding: 16px;
+  border-width: 0;
+}
+
+/* 內部 .cal 是實際的日曆白底卡片 */
+#calendar-wrap > .cal {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 40px rgba(62, 40, 23, 0.2);
+  max-width: 360px;
+  width: 100%;
+}
+
 /* === Topbar (sticky 頂端、含 logo + 日期) === */
 .topbar {
   position: sticky;
@@ -5120,6 +5152,13 @@ function bindEvents() {
   // 齒輪 → 開設定 modal
   document.getElementById('btn-settings').addEventListener('click', () => {
     openSettingsModal();
+  });
+
+  // 點日曆 popup 外圍 (backdrop) 關閉日曆
+  document.getElementById('calendar-wrap').addEventListener('click', (e) => {
+    if (e.target.id === 'calendar-wrap') {
+      document.getElementById('calendar-wrap').classList.add('hidden');
+    }
   });
 
   // Touch swipe for mobile
