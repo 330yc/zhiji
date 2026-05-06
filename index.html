@@ -3848,6 +3848,30 @@ function renderMealModal() {
     coffee: ['美式', '拿鐵'],
     tea: ['全糖', '半糖', '微糖', '無糖']
   };
+  const DRINK_SIZES = ['1杯', '2杯', '500cc', '700cc'];
+  const ALL_BASES = [...DRINK_PRESETS.coffee, ...DRINK_PRESETS.tea];
+
+  // 解析既有 summary 拆成 base + size (給編輯模式用)
+  // 第一次開 modal 時、把 summary 拆解、放進 currentMealDraft._drinkBase 跟 _drinkSize
+  if (!currentMealDraft._drinkParsed) {
+    const sum = (d.summary || '').trim();
+    let base = '';
+    let size = '';
+    // 從 ALL_BASES 找有沒有匹配的開頭
+    for (const b of ALL_BASES) {
+      if (sum === b || sum.startsWith(b + ' ')) {
+        base = b;
+        const rest = sum.slice(b.length).trim();
+        if (DRINK_SIZES.includes(rest)) size = rest;
+        break;
+      }
+    }
+    // 如果沒匹配 base、檢查是否單獨是 size
+    if (!base && DRINK_SIZES.includes(sum)) size = sum;
+    currentMealDraft._drinkBase = base;
+    currentMealDraft._drinkSize = size;
+    currentMealDraft._drinkParsed = true;
+  }
   // 判斷簡述是否符合任一預設(用於高亮)
   const summary = d.summary || '';
   const matchedPreset = [...DRINK_PRESETS.coffee, ...DRINK_PRESETS.tea].includes(summary);
@@ -3874,7 +3898,7 @@ function renderMealModal() {
         <label class="field-label">咖啡</label>
         <div class="drink-quick-row">
           ${DRINK_PRESETS.coffee.map(name =>
-            `<button class="drink-quick-chip ${summary === name ? 'selected' : ''}" data-drink="${name}">${name}</button>`
+            `<button class="drink-quick-chip ${currentMealDraft._drinkBase === name ? 'selected' : ''}" data-drink="${name}">${name}</button>`
           ).join('')}
         </div>
       </div>
@@ -3883,7 +3907,16 @@ function renderMealModal() {
         <label class="field-label">茶飲</label>
         <div class="drink-quick-row">
           ${DRINK_PRESETS.tea.map(name =>
-            `<button class="drink-quick-chip ${summary === name ? 'selected' : ''}" data-drink="${name}">${name}</button>`
+            `<button class="drink-quick-chip ${currentMealDraft._drinkBase === name ? 'selected' : ''}" data-drink="${name}">${name}</button>`
+          ).join('')}
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">分量</label>
+        <div class="drink-quick-row">
+          ${DRINK_SIZES.map(sz =>
+            `<button class="drink-quick-chip ${currentMealDraft._drinkSize === sz ? 'selected' : ''}" data-drink-size="${sz}">${sz}</button>`
           ).join('')}
         </div>
       </div>
@@ -3923,12 +3956,31 @@ function renderMealModal() {
     });
 
     // 飲料快選 chip 點擊 — 互斥邏輯
+    // 工具:把 _drinkBase 跟 _drinkSize 組成 summary
+    const composeSummary = () => {
+      const b = currentMealDraft._drinkBase || '';
+      const s = currentMealDraft._drinkSize || '';
+      currentMealDraft.summary = (b + (b && s ? ' ' : '') + s).trim();
+    };
+
     document.querySelectorAll('.drink-quick-chip').forEach(btn => {
       btn.addEventListener('click', () => {
-        const label = btn.dataset.drink;
         // 同步現有熱量(避免重 render 時遺失)
         const kcalInput = document.getElementById('f-kcal');
         if (kcalInput) currentMealDraft.totalKcal = toNum(kcalInput.value);
+
+        // 分量 chip
+        if (btn.dataset.drinkSize) {
+          const sz = btn.dataset.drinkSize;
+          // 互斥:再點一次取消
+          currentMealDraft._drinkSize = (currentMealDraft._drinkSize === sz) ? '' : sz;
+          composeSummary();
+          renderMealModal();
+          return;
+        }
+
+        // 種類 / 手動 chip
+        const label = btn.dataset.drink;
 
         if (label === '__manual__') {
           // 點手動填寫:清掉現有簡述、標記為手動模式、顯示 input
@@ -3937,22 +3989,26 @@ function renderMealModal() {
           if (isShown) {
             // 已展開、再點一次收合(取消手動模式)
             currentMealDraft.summary = '';
+            currentMealDraft._drinkBase = '';
+            currentMealDraft._drinkSize = '';
             renderMealModal();
           } else {
-            // 展開:清掉預設選的、進入手動模式(用一個特殊標記、避免被當預設值)
+            // 展開:清掉預設選的、進入手動模式
             currentMealDraft.summary = '';
+            currentMealDraft._drinkBase = '';
+            currentMealDraft._drinkSize = '';
             currentMealDraft._manualMode = true;
             renderMealModal();
-            // render 後聚焦
             setTimeout(() => {
               const inp = document.getElementById('drink-manual');
               if (inp) inp.focus();
             }, 50);
           }
         } else {
-          // 點預設 chip:設為簡述、清掉手動模式
-          currentMealDraft.summary = label;
+          // 點預設種類:互斥 + 清手動模式
+          currentMealDraft._drinkBase = (currentMealDraft._drinkBase === label) ? '' : label;
           delete currentMealDraft._manualMode;
+          composeSummary();
           renderMealModal();
         }
       });
