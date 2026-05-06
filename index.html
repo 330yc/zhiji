@@ -1208,10 +1208,7 @@ button {
 .bc-chip-muscle.selected  { background: #8FA068; }
 .bc-chip-fat.selected     { background: #C85A3C; }
 
-/* 切換時 row 淡入淡出 */
-.weight-row {
-  transition: opacity 0.2s ease-out;
-}
+
 .bc-chip-fat.selected {
   background: #C85A3C;
   color: #fff;
@@ -1223,14 +1220,7 @@ button {
 }
 
 .weight-row.bc-hidden {
-  opacity: 0;
-  max-height: 0;
-  margin: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  border-width: 0;
-  overflow: hidden;
-  pointer-events: none;
+  display: none;
 }
 
 /* === Topbar (sticky 頂端、含 logo + 日期) === */
