@@ -3104,7 +3104,22 @@ async function renderWeightCard() {
       c.classList.toggle('selected', _bcSelected.has(c.dataset.bcIndicator));
     });
     body.querySelectorAll('.weight-detail .weight-row[data-label]').forEach(r => {
-      r.classList.toggle('bc-hidden', !_bcSelected.has(r.dataset.label));
+      const wasHidden = r.classList.contains('bc-hidden');
+      const shouldHide = !_bcSelected.has(r.dataset.label);
+      r.classList.toggle('bc-hidden', shouldHide);
+      // 從隱藏 → 顯示時、SVG 之前可能在 width=0 狀態下渲染、需要重畫
+      if (wasHidden && !shouldHide) {
+        const svg = r.querySelector('.weight-spark[data-series]');
+        if (svg) {
+          // 雙層 rAF 確保 layout 完成、SVG 拿到正確寬度
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const series = JSON.parse(svg.dataset.series);
+              renderSparkline(svg, series);
+            });
+          });
+        }
+      }
     });
   }
   applyBcSelection();
