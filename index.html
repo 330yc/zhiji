@@ -2174,6 +2174,16 @@ async function buildDayPayload(dateStr) {
 // 從遠端 day JSON 寫回本機 (用於拉取時)
 async function applyRemoteDay(remote) {
   const dateStr = remote.date;
+
+  // === 防護:檢查本機 meals 是否比 remote 多 ===
+  // 如果是、可能是 race condition、不該套用 remote(會丟資料)
+  const localMealsCheck = await idbGetByIndex('meals', 'date', dateStr);
+  const remoteMealsCount = (remote.meals || []).length;
+  if (localMealsCheck.length > remoteMealsCount) {
+    console.warn(`[applyRemoteDay] ${dateStr} 本機 meals (${localMealsCheck.length}) > remote (${remoteMealsCount})、跳過套用以防資料遺失`);
+    return false;  // 不套用、由下一輪 sync 把本機推上去
+  }
+
   // 同步「最後寫入時間」為 remote 的版本時戳
   // 本機現在 = remote 這個版本,沒有比 remote 新
   const meta = await idbGet('sync_meta', dateStr) || { date: dateStr };
@@ -2523,6 +2533,13 @@ async function syncToGithub() {
 
   if (success > 0) {
     renderAll();
+  }
+
+  // 同步完成、檢查 queue 是否還有殘留 (例如同步期間有新 markDirty)
+  const remaining = await idbGetAll('sync_queue');
+  if (remaining.length > 0) {
+    console.log(`[sync] 同步期間有新項目 ${remaining.length} 筆、再跑一次`);
+    setTimeout(() => syncToGithub(), 500);
   }
 }
 
@@ -4342,7 +4359,9 @@ window.saveMeal = async function() {
   if (d.items.length === 0 && !d.summary && d.totalKcal == null) {
     toast('請至少填寫簡述或新增一項食材'); return;
   }
-  await idbPut('meals', d);
+  // idbPut 回傳新分配的 id (autoIncrement)、寫回 draft 避免後續混淆
+  const newId = await idbPut('meals', d);
+  if (newId != null && d.id == null) d.id = newId;
   closeModal();
   toast('已儲存');
   renderMealCard();
